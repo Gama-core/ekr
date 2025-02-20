@@ -31,4 +31,6 @@ mindmap
     sub3((Domestic lithography))
       sub3a(Huawei)
       sub3b(SMIC)
+    sub4((RISC V architecture))
+      sub4a(Processors for AI)
  
