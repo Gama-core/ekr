@@ -11,9 +11,11 @@ Countinuous search and web crawling can enhance the knowledge base with updated 
 
  # Use cases
  the knowledge base can be built to gather and enrich information on any important subject as :
- Political context Economic war between USA and China
- Scientific research (Latest breakthroughs inquantum computing)
- Competitors monitoring (Différent solar panel vendors in MENA région market)
+ - Political context Economic war between USA and China
+ - Scientific research (Latest breakthroughs inquantum computing)
+ - Competitors monitoring (Différent solar panel vendors in MENA région market)
+
+ To start a knowledge base a subject should be developped in a hierachical manner into subtopics. it can be represented like a mindmap.
  
 ```mermaid
 mindmap
@@ -29,5 +31,4 @@ mindmap
     sub3((Domestic lithography))
       sub3a(Huawei)
       sub3b(SMIC)
- 
  
