@@ -10,4 +10,24 @@ Countinuous search and web crawling can enhance the knowledge base with updated 
 - Provide answer based on collected knowlegde
 
  # Use cases
- There can be 
+ the knowledge base can be built to gather and enrich information on any important subject as :
+ Political context Economic war between USA and China
+ Scientific research (Latest breakthroughs inquantum computing)
+ Competitors monitoring (Différent solar panel vendors in MENA région market)
+ 
+```mermaid
+mindmap
+  root((Economic war between USA and China))
+    sub1((NVIDIA))
+      sub1a(Alternatives)
+      sub1b(Chinese companies still using NVIDIA)
+    sub2((ASML))
+      sub2a(marketshare)
+      sub2b(advanced lithography)
+        sub2b1(Clients)
+        sub2b2(endorsment)
+    sub3((Domestic lithography))
+      sub3a(Huawei)
+      sub3b(SMIC)
+ 
+ 
