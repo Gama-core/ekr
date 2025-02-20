@@ -6,6 +6,8 @@ Countinuous search and web crawling can enhance the knowledge base with updated 
 - Store information of interest in a hierarchical notes
 - Enrich notes with content from documents, media and web pages
 - Keep notes updates using actualized content from web crawling
-- present summaries, insights, updates
+- Present summaries, insights, updates
+- Provide answer based on collected knowlegde
 
- 
+ # Use cases
+ There can be 
