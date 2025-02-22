@@ -33,7 +33,8 @@ mindmap
       sub3b(SMIC)
     sub4((RISC V))
       sub4a(Processors for AI)
- 
+ ```
+
 # Tools
 -**Database** : Mysql for notes storing mysql but should be independant from DB.
 -**Documents indexing** : Elastic search
