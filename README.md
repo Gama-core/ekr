@@ -9,7 +9,7 @@ Countinuous search and web crawling can enhance the knowledge base with updated 
 - Present summaries, insights, updates
 - Provide answer based on collected knowlegde
 
- # Use cases
+# Use cases
  the knowledge base can be built to gather and enrich information on any important subject as :
  - Political context Economic war between USA and China
  - Scientific research (Latest breakthroughs inquantum computing)
@@ -36,7 +36,7 @@ mindmap
  ```
 
 # Tools
--**Database** : Mysql for notes storing mysql but should be independant from DB.
--**Documents indexing** : Elastic search
--**Web crawling** : Crawl4AI
--**Mobile app** : Flutter
+- **Database** : Mysql for notes storing mysql but should be independant from DB.
+- **Documents indexing** : Elastic search
+- **Web crawling** : Crawl4AI
+- **Mobile app** : Flutter
