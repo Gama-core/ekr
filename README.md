@@ -28,9 +28,14 @@ mindmap
       sub2b(advanced lithography)
         sub2b1(Clients)
         sub2b2(endorsment)
-    sub3((Domestic lithography))
+    sub3((Lithography))
       sub3a(Huawei)
       sub3b(SMIC)
     sub4((RISC V))
       sub4a(Processors for AI)
  
+# Tools
+-**Database** : Mysql for notes storing mysql but should be independant from DB.
+-**Documents indexing** : Elastic search
+-**Web crawling** : Crawl4AI
+-**Mobile app** : Flutter
