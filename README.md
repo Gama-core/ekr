@@ -40,3 +40,5 @@ mindmap
 - **Documents indexing** : Elastic search
 - **Web crawling** : Crawl4AI
 - **Mobile app** : Flutter
+- **LLM** : Groq, DeepSeek distilled 70B
+- **RAG** : Faiss
