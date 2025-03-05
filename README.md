@@ -8,6 +8,7 @@ Countinuous search and web crawling can enhance the knowledge base with updated 
 - Keep notes updates using actualized content from web crawling
 - Present summaries, insights, updates
 - Provide answer based on collected knowlegde
+- Implement document life cycle from creation to archive
 
 # Use cases
  the knowledge base can be built to gather and enrich information on any important subject as :
