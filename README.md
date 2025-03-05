@@ -43,3 +43,4 @@ mindmap
 - **Mobile app** : Flutter
 - **LLM** : Groq, DeepSeek distilled 70B
 - **RAG** : Langchain, Faiss
+- **Backend** : FastAPI
