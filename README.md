@@ -36,6 +36,9 @@ mindmap
       sub4a(Processors for AI)
  ```
 
+# High level architecture
+![image](https://github.com/user-attachments/assets/7bf3092d-7823-40e2-9980-fb4804d08eec)
+
 # Tools
 - **Database** : Mysql for notes storing mysql but should be independant from DB.
 - **Documents indexing** : Elastic search
