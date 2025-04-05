@@ -40,10 +40,10 @@ mindmap
 ![image](https://github.com/user-attachments/assets/7bf3092d-7823-40e2-9980-fb4804d08eec)
 
 # Tools
-- **Database** : Mysql for notes storing mysql but should be independant from DB.
+- **Database** : Postgresql for KB structure storing (but should be independant from DB).
 - **Documents indexing** : Elastic search
 - **Web crawling** : Crawl4AI
 - **Mobile app** : Flutter
 - **LLM** : Groq, DeepSeek distilled 70B
-- **RAG** : Langchain, Faiss
+- **RAG** : Llamaindex, Faiss
 - **Backend** : FastAPI
