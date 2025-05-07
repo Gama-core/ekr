@@ -1,1 +1,7 @@
 /view_database.py
+/view_note_hierarchy.py
+/.venv/
+/alembic/
+/.env
+/alembic.ini
+.idea/
