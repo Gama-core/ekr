@@ -1,14 +1,13 @@
 # app/services/agent_service.py
 import logging
 from app import schemas
-from app.services import google_search  # web_crawler is now used differently
+from app.services import google_search
 from app.services import llm_service
 
-# --- Import crawler and config classes directly ---
 from crawl4ai import AsyncWebCrawler
 from crawl4ai.async_configs import BrowserConfig
-# --- Import the modified crawl function ---
 from app.services.web_crawler import crawl_and_extract_with_instance
+from playwright.async_api import Error as PlaywrightError  # Import base PlaywrightError
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +27,7 @@ state that you couldn't find a definitive answer in the provided context.
 Do not make up information.
 """
 MAX_CONTEXT_LENGTH = 3500
+MAX_URLS_TO_TRY = 5  # Number of URLs to attempt crawling from search results
 
 
 async def process_user_query_with_web_context(
@@ -37,7 +37,7 @@ async def process_user_query_with_web_context(
     intermediate_steps: list[schemas.agent.AgentStep] = []
     final_answer_str = "Could not process the query."
     crawled_url_for_response = None
-    crawled_text = None  # Initialize crawled_text
+    crawled_text = None  # This will hold the first successfully crawled content
 
     try:
         # Step 1: LLM - Generate Search Query
@@ -50,7 +50,7 @@ async def process_user_query_with_web_context(
         )
         intermediate_steps.append(schemas.agent.AgentStep(
             step_name="Generate Search Query",
-            details=f"LLM generated search query: '{generated_search_query}'" if generated_search_query else "Failed to generate search query."
+            details=f"LLM generated search query: '{generated_search_query}'" if generated_search_query and "Error" not in generated_search_query else f"Failed to generate search query. LLM Response: {generated_search_query}"
         ))
 
         if not generated_search_query or "Error" in generated_search_query:
@@ -58,11 +58,11 @@ async def process_user_query_with_web_context(
             final_answer_str = "I had trouble understanding what to search for. Please try rephrasing your question."
             return schemas.agent.AgentResponse(final_answer=final_answer_str, intermediate_steps=intermediate_steps)
 
-        # Step 2: Web Search
-        urls_found = await google_search.search_web(query=generated_search_query, num_results=1)
+        # Step 2: Web Search - Request more URLs
+        urls_found = await google_search.search_web(query=generated_search_query, num_results=MAX_URLS_TO_TRY)
         intermediate_steps.append(schemas.agent.AgentStep(
             step_name="Web Search",
-            details=f"Found URLs: {urls_found}" if urls_found else f"No URLs found for '{generated_search_query}'"
+            details=f"Found {len(urls_found)} URLs: {urls_found}" if urls_found else f"No URLs found for '{generated_search_query}'"
         ))
 
         if not urls_found:
@@ -70,45 +70,66 @@ async def process_user_query_with_web_context(
             final_answer_str = f"I couldn't find relevant web pages for the search term: '{generated_search_query}'."
             return schemas.agent.AgentResponse(final_answer=final_answer_str, intermediate_steps=intermediate_steps)
 
-        target_url = urls_found[0]
-        crawled_url_for_response = target_url
-        logger.info(f"Selected URL to crawl: {target_url}")
+        # Step 3: Web Crawl - Loop through URLs and attempt to crawl
+        successful_crawl = False
+        for i, target_url in enumerate(urls_found):
+            if i >= MAX_URLS_TO_TRY:  # Safety break, though search_web should limit
+                break
 
-        # --- Step 3: Web Crawl ---
-        # Configure and create a new crawler instance for this specific crawl operation
-        # Match the headless=False, verbose=True from your successful standalone test for debugging
-        # For production, you'd likely use headless=True, verbose=False (or based on config)
-        browser_cfg_for_crawl = BrowserConfig(headless=False, verbose=True)
-        async with AsyncWebCrawler(config=browser_cfg_for_crawl) as crawler:
-            logger.info(f"Temporary AsyncWebCrawler instance created for {target_url}")
-            crawled_text = await crawl_and_extract_with_instance(
-                crawler_instance=crawler,
-                url=target_url
-                # use_simplified_config=True # Uncomment this to test with simplified config
-            )
-            logger.info(f"Temporary AsyncWebCrawler instance for {target_url} will be closed.")
-        # The 'async with' block ensures crawler.close() is called.
+            logger.info(f"Attempting to crawl URL {i + 1}/{len(urls_found)}: {target_url}")
+            current_crawl_step_details = []
+            try:
+                browser_cfg_for_crawl = BrowserConfig(headless=True, verbose=False)
+                async with AsyncWebCrawler(config=browser_cfg_for_crawl) as crawler:
+                    logger.info(f"Temporary AsyncWebCrawler instance created for {target_url}")
+                    # Ensure the instance is passed correctly
+                    temp_crawled_text = await crawl_and_extract_with_instance(
+                        crawler_instance=crawler,  # Pass the created crawler instance
+                        url=target_url
+                    )
+                    logger.info(f"Temporary AsyncWebCrawler instance for {target_url} will be closed.")
 
-        intermediate_steps.append(schemas.agent.AgentStep(
-            step_name="Web Crawl",
-            details=f"Crawled content from {target_url} (approx {len(crawled_text or '')} chars)" if crawled_text else f"Failed to crawl {target_url}"
-        ))
+                if temp_crawled_text:
+                    crawled_text = temp_crawled_text
+                    crawled_url_for_response = target_url
+                    successful_crawl = True
+                    current_crawl_step_details.append(
+                        f"Successfully crawled and extracted content from {target_url} (approx {len(crawled_text)} chars).")
+                    logger.info(f"Successfully crawled {target_url}")
+                    break  # Exit loop on first successful crawl
+                else:
+                    current_crawl_step_details.append(
+                        f"Crawl attempt for {target_url} completed but no usable content extracted.")
+                    logger.warning(f"No usable content extracted from {target_url}")
 
-        if not crawled_text:
-            logger.error(f"Failed to crawl or extract content from {target_url}")
-            final_answer_str = f"I found a page ({target_url}) but had trouble reading its content."
-            # No 'return' here yet, will fall through to final answer generation
-            # which should handle the case where crawled_text is None.
-        else:  # Only truncate if crawled_text is not None
-            if len(crawled_text) > MAX_CONTEXT_LENGTH:
-                logger.info(f"Truncating crawled context from {len(crawled_text)} to {MAX_CONTEXT_LENGTH} chars.")
-                crawled_text = crawled_text[:MAX_CONTEXT_LENGTH]
+            except PlaywrightError as pe:  # Catch Playwright-specific errors like TargetClosedError
+                error_detail = f"PlaywrightError ({type(pe).__name__}) while crawling {target_url}: {str(pe)}"
+                current_crawl_step_details.append(error_detail)
+                logger.error(error_detail)
+            except Exception as e_crawl:  # Catch other unexpected errors during this specific crawl
+                error_detail = f"Unexpected error ({type(e_crawl).__name__}) while crawling {target_url}: {str(e_crawl)}"
+                current_crawl_step_details.append(error_detail)
+                logger.exception(f"Unexpected error crawling {target_url}")  # Log full traceback for this crawl error
 
-        # --- Step 4: LLM - Answer Generation with Context ---
-        # Ensure crawled_text is a string, even if empty, to avoid issues with prompt formatting.
-        # The LLM should be prompted to handle cases where context might be missing or insufficient.
-        context_for_llm = crawled_text if crawled_text else "No specific content could be extracted from the web page."
-        answer_prompt = f"User's original question: \"{user_query}\"\n\nWeb page context from {target_url}:\n\"\"\"\n{context_for_llm}\n\"\"\""
+            finally:  # Add step details for this attempt regardless of outcome
+                intermediate_steps.append(schemas.agent.AgentStep(
+                    step_name=f"Web Crawl Attempt {i + 1}",
+                    details=" | ".join(
+                        current_crawl_step_details) if current_crawl_step_details else f"Attempted crawl for {target_url}, no specific details."
+                ))
+
+        if not successful_crawl:
+            logger.error(f"Failed to crawl or extract usable content from any of the {len(urls_found)} URLs found.")
+            final_answer_str = f"I found some web pages for '{generated_search_query}', but had trouble reading their content after trying multiple sources."
+            # Proceed to LLM, which should handle empty context if crawled_text is still None
+        elif crawled_text and len(crawled_text) > MAX_CONTEXT_LENGTH:  # crawled_text is guaranteed to be non-None here
+            logger.info(
+                f"Truncating crawled context from {len(crawled_text)} to {MAX_CONTEXT_LENGTH} chars for URL {crawled_url_for_response}.")
+            crawled_text = crawled_text[:MAX_CONTEXT_LENGTH]
+
+        # Step 4: LLM - Answer Generation with Context
+        context_for_llm = crawled_text if crawled_text else "No specific content could be extracted from any of the attempted web pages."
+        answer_prompt = f"User's original question: \"{user_query}\"\n\nWeb page context from {crawled_url_for_response or 'N/A'}:\n\"\"\"\n{context_for_llm}\n\"\"\""
 
         llm_final_answer = await llm_service.generate_llm_response(
             system_prompt=ANSWER_WITH_CONTEXT_SYSTEM_PROMPT,
@@ -118,26 +139,28 @@ async def process_user_query_with_web_context(
         )
         intermediate_steps.append(schemas.agent.AgentStep(
             step_name="Generate Final Answer",
-            details="LLM generated the final answer." if llm_final_answer and "Error" not in llm_final_answer else f"LLM failed to generate a final answer. Response: {llm_final_answer}"
+            details="LLM generated the final answer." if llm_final_answer and "Error" not in llm_final_answer else f"LLM failed to generate a final answer. LLM Response: {llm_final_answer}"
         ))
 
         if not llm_final_answer or "Error" in llm_final_answer:
             logger.error(f"LLM failed to generate a final answer using the context. Response: {llm_final_answer}")
-            if crawled_text:  # If we had some context
-                final_answer_str = f"I retrieved some information from {target_url} but had trouble formulating a concise answer. You might want to check the source directly."
-            else:  # If crawl failed and we sent "No specific content..."
-                final_answer_str = f"I attempted to get information from {target_url} but couldn't read the content or formulate an answer based on it."
+            if crawled_text:  # We had some context
+                final_answer_str = f"I retrieved information from {crawled_url_for_response} but encountered an issue formulating a concise answer. You might want to check the source ({crawled_url_for_response}) directly."
+            else:  # No context was successfully retrieved
+                final_answer_str = f"I found search results for '{generated_search_query}' but couldn't retrieve content from them. Then, I had an issue formulating an answer."
         else:
             final_answer_str = llm_final_answer
 
-    except Exception as e:
+    except Exception as e_main:  # Main try-except for the whole process
+        # This will catch errors outside the crawl loop or if the loop itself has an unhandled issue
         logger.exception("Unhandled exception in process_user_query_with_web_context")
-        intermediate_steps.append(schemas.agent.AgentStep(step_name="Critical Error", details=str(e)))
-        final_answer_str = "A critical error occurred while processing your request."
+        intermediate_steps.append(
+            schemas.agent.AgentStep(step_name="Critical Error", details=f"{type(e_main).__name__}: {str(e_main)}"))
+        final_answer_str = "A critical error occurred while processing your request. Please try again later."
 
     logger.info(f"Final answer for query '{user_query}': '{final_answer_str[:100]}...'")
     return schemas.agent.AgentResponse(
         final_answer=final_answer_str,
         intermediate_steps=intermediate_steps,
-        source_url_crawled=crawled_url_for_response
+        source_url_crawled=crawled_url_for_response  # This will be the URL of the successfully crawled page
     )
