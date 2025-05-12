@@ -56,7 +56,7 @@ def create_document(
         url=doc_in.url,
         path=doc_in.path,
         name=doc_in.name,
-        version=0  # Or your initial version logic
+        #version=0  # Or your initial version logic
     )
     db.add(db_doc)
     db.commit()

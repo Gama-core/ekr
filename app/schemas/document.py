@@ -53,3 +53,21 @@ class DocumentUpdate(BaseModel):
     path: Optional[str] = Field(None, max_length=255)
     name: Optional[str] = Field(None, max_length=255)
     # Add other updatable fields
+
+class DocumentTypeUpdate(BaseModel):
+    """
+    Schema for updating an existing DocumentType.
+    Allows updating the name.
+    """
+    name: Optional[str] = Field(None, max_length=255, description="The new name for the document type.")
+    # Add other fields here if they should be updatable, marked as Optional
+
+    model_config = { # Pydantic v2 config example
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "name": "Updated Web Page Type"
+                }
+            ]
+        }
+    }
