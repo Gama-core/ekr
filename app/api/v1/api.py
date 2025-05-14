@@ -6,7 +6,7 @@ from .endpoints import assistant as assistant_router
 from .endpoints import ingestion as ingestion_router
 from .endpoints import notes as notes_router
 from .endpoints import documents as documents_router
-# from .endpoints import links as links_router         # Example for future
+from .endpoints import links as links_router
 
 # This is the router instance for all V1 API endpoints.
 # It will be imported by the top-level API router.
@@ -43,9 +43,9 @@ api_router_v1.include_router(
 )
 
 
-# Example for future Links router:
-# api_router_v1.include_router(
-#     links_router.router,
-#     prefix="/kb/links",
-#     tags=["V1 - KB - Links"]
-# )
+
+api_router_v1.include_router(
+    links_router.router,
+    prefix="/kb/links",
+    tags=["V1 - KB - Links"]
+)
