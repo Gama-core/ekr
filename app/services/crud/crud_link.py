@@ -1,162 +1,122 @@
-# app/services/crud/crud_link.py
+# app/schemas/ingestion.py
 
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.sql import or_  # For OR conditions in queries
-from typing import Optional, List
+from pydantic import BaseModel, Field, HttpUrl # Added HttpUrl
+from typing import List, Optional # Ensured Optional is imported
 
-from app import models  # Your SQLAlchemy models
-from app import schemas  # Your Pydantic schemas
-from pydantic import HttpUrl  # Import HttpUrl to check its instance
-
-def get_link(db: Session, link_id: int) -> Optional[models.Link]:
+# --- Existing Schemas (with minor adjustment to ProcessedUrlResult) ---
+class IngestionRequest(BaseModel):
     """
-    Retrieve a link by its ID.
+    Schema for the request body of the /search-and-crawl ingestion endpoint.
     """
-    return db.query(models.Link).filter(models.Link.id == link_id).first()
+    query: str = Field(..., description="The search query to use for finding relevant URLs")
+    num_results: int = Field(default=5, ge=1, le=10, description="Number of search results to process (Google max is 10 per request)")
 
-def get_all_links(db: Session, skip: int = 0, limit: int = 100) -> List[models.Link]:
+class ProcessedUrlResult(BaseModel):
     """
-    Retrieve all links with pagination.
+    Schema describing the outcome of processing a single URL,
+    or the result of a single item ingestion (like text or file).
     """
-    return db.query(models.Link).offset(skip).limit(limit).all()
+    # Make url optional because text/file ingestion might not have a primary source URL
+    url: Optional[str] = Field(None, description="The URL processed, if applicable.")
+    status: str = Field(..., description="Status of the processing (e.g., 'success', 'crawl_failed', 'db_error').")
+    note_id: Optional[int] = Field(None, description="ID of the created Note, if successful.")
+    document_id: Optional[int] = Field(None, description="ID of the created Document, if successful and applicable.")
+    error: Optional[str] = Field(None, description="Error message if processing failed.")
+    message: Optional[str] = Field(None, description="Additional message providing context about the processing.") # Added for more detail
 
-def create_link(db: Session, link_in: schemas.link.LinkCreate) -> models.Link:
+class IngestionResponse(BaseModel):
     """
-    Create a new link.
-    A link can be between two notes (source_id and destination_id)
-    or a note to an external URL (source_id and url, with is_web_link=True).
-    Or a note might have a primary external link (Note.link_id refers to this Link.id, where this Link has a URL).
+    Schema for the response body of the multi-URL /search-and-crawl ingestion endpoint.
     """
-    # Basic validation for link integrity
-    if link_in.is_web_link and not link_in.url:
-        raise ValueError("Web link must have a URL.")
-    # If it's not a web link, and it doesn't have a source/destination pair, AND it also doesn't have a URL
-    # (meaning it's an internal link trying to be just a placeholder, or a misconfigured link), raise error.
-    # This allows a link to be JUST a URL (is_web_link=True, no source/dest) for Note.link_id.
-    if not link_in.is_web_link and not (link_in.source_id and link_in.destination_id) and not link_in.url:
-        raise ValueError("Internal link must have source and destination notes, or if it's a general link, it should have a URL and be marked as a web link.")
+    message: str
+    processed_urls: List[ProcessedUrlResult] = []
 
 
-    # Ensure source/destination notes exist if IDs are provided
-    if link_in.source_id:
-        source_note = db.query(models.Note).filter(models.Note.id == link_in.source_id).first()
-        if not source_note:
-            raise ValueError(f"Source note with ID {link_in.source_id} not found.")
-    if link_in.destination_id:
-        destination_note = db.query(models.Note).filter(models.Note.id == link_in.destination_id).first()
-        if not destination_note:
-            raise ValueError(f"Destination note with ID {link_in.destination_id} not found.")
+# --- NEW SCHEMAS for /ingest/url and /ingest/text ---
 
-    # --- FIX: Convert HttpUrl to string before creating DB model ---
-    url_to_store: Optional[str] = None
-    if link_in.url is not None:
-        if isinstance(link_in.url, HttpUrl):  # Check if it's an HttpUrl object
-            url_to_store = str(link_in.url)   # Convert to string
-        else:
-            url_to_store = link_in.url        # Assume it's already a string if not HttpUrl
-    # --- End FIX ---
-
-    db_link = models.Link(
-        link_type=link_in.link_type,
-        destination_id=link_in.destination_id,
-        source_id=link_in.source_id,
-        url=url_to_store,  # Use the string version
-        is_web_link=link_in.is_web_link,
-        version=0  # Initial version
-    )
-
-    db.add(db_link)
-    try:
-        db.commit()
-        db.refresh(db_link)
-    except IntegrityError:
-        db.rollback()
-        raise
-    return db_link
-
-def update_link(
-    db: Session,
-    link_id: int,
-    link_update: schemas.link.LinkUpdate
-) -> Optional[models.Link]:
+class IngestUrlRequest(BaseModel):
     """
-    Update an existing link.
+    Request schema for ingesting content from a single URL.
     """
-    db_link = get_link(db, link_id)
-    if not db_link:
-        return None
+    url: HttpUrl = Field(..., description="The URL to crawl and ingest.")
+    parent_note_id: Optional[int] = Field(None, description="Optional ID of an existing Note to set as the parent for the newly created Note.")
+    # You could add more fields here if needed, e.g.:
+    # custom_doc_type_id: Optional[int] = None
+    # custom_note_type_id: Optional[int] = None
 
-    update_data = link_update.model_dump(exclude_unset=True)
+    model_config = { # Pydantic v2 example
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "url": "https://blog.example.com/my-latest-article",
+                    "parent_note_id": 105
+                }
+            ]
+        }
+    }
 
-    # --- FIX: Convert HttpUrl to string if 'url' is being updated ---
-    if "url" in update_data and update_data["url"] is not None:
-        if isinstance(update_data["url"], HttpUrl):
-            update_data["url"] = str(update_data["url"]) # Convert to string
-    # --- End FIX ---
-
-
-    # Validate if source/destination notes exist if they are being updated
-    if "source_id" in update_data and update_data["source_id"] is not None:
-        source_note = db.query(models.Note).filter(models.Note.id == update_data["source_id"]).first()
-        if not source_note:
-            raise ValueError(f"Updated source note with ID {update_data['source_id']} not found.")
-    if "destination_id" in update_data and update_data["destination_id"] is not None:
-        destination_note = db.query(models.Note).filter(models.Note.id == update_data["destination_id"]).first()
-        if not destination_note:
-            raise ValueError(f"Updated destination note with ID {update_data['destination_id']} not found.")
-
-    for key, value in update_data.items():
-        setattr(db_link, key, value)
-
-    # Re-check consistency if is_web_link or url was part of the update
-    if "is_web_link" in update_data or ("url" in update_data and update_data["url"] is not None):
-        if db_link.is_web_link and not db_link.url:
-            # This state should ideally be prevented by schema or earlier logic,
-            # but good to catch if update leads to inconsistency.
-            raise ValueError("Cannot set as web link without a URL after update.")
-
-    db_link.version = (db_link.version or 0) + 1
-    db.add(db_link)
-    db.commit()
-    db.refresh(db_link)
-    return db_link
-
-def delete_link(db: Session, link_id: int) -> Optional[models.Link]:
+class IngestTextRequest(BaseModel):
     """
-    Delete a link.
-    Note: The endpoint calling this should handle nullifying Note.link_id if necessary.
+    Request schema for ingesting raw text content.
     """
-    db_link = get_link(db, link_id)
-    if not db_link:
-        return None
+    title: str = Field(..., min_length=1, max_length=255, description="Title for the new Note created from the text.")
+    text_content: str = Field(..., min_length=1, description="The raw text content to be ingested into a new Note.")
+    parent_note_id: Optional[int] = Field(None, description="Optional ID of an existing Note to set as the parent for the newly created Note.")
+    # You could add more fields here if needed, e.g.:
+    # custom_note_type_id: Optional[int] = None
+    # color: Optional[str] = None
 
-    # The logic to nullify Note.link_id is better handled in the API endpoint layer
-    # just before calling this, as it involves querying another table (Note).
-    # This CRUD function focuses solely on the Link entity.
+    model_config = { # Pydantic v2 example
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "title": "My Quick Thoughts on Topic X",
+                    "text_content": "This is a short piece of text I want to save as a note...",
+                    "parent_note_id": 201
+                }
+            ]
+        }
+    }
 
-    db.delete(db_link)
-    db.commit()
-    return db_link
+# --- NEW RESPONSE SCHEMA for single item ingestion (URL, Text, File) ---
 
-def get_links_for_note(db: Session, note_id: int) -> List[models.Link]:
+class SingleIngestionResult(BaseModel):
     """
-    Retrieve all links where the given note_id is either the source or the destination.
-    This does NOT include the link if it's only referenced by note.link_id.
-    The API endpoint combines this with a check for note.link_id.
+    Schema for the response of single-item ingestion endpoints (/url, /text, /file).
+    This provides a consistent structure.
     """
-    return db.query(models.Link).filter(
-        or_(models.Link.source_id == note_id, models.Link.destination_id == note_id)
-    ).all()
+    message: str = Field(..., description="A summary message about the ingestion outcome.")
+    note_id: Optional[int] = Field(None, description="ID of the created Note, if successful.")
+    document_id: Optional[int] = Field(None, description="ID of the created Document, if successful and applicable (e.g., for URL or File ingestion).")
+    error: Optional[str] = Field(None, description="Error message if the ingestion failed.")
+    # Optional: include the processed item identifier for clarity, like the URL or filename
+    identifier_processed: Optional[str] = Field(None, description="The identifier of the item processed (e.g., URL, filename).")
 
-def get_outgoing_links_from_note(db: Session, note_id: int) -> List[models.Link]:
-    """
-    Retrieve all links originating from the given note_id (note is the source).
-    """
-    return db.query(models.Link).filter(models.Link.source_id == note_id).all()
+    model_config = { # Pydantic v2 example
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "message": "URL ingested successfully.",
+                    "note_id": 301,
+                    "document_id": 55,
+                    "identifier_processed": "https://example.com/article"
+                },
+                {
+                    "message": "Text ingested successfully as a new note.",
+                    "note_id": 302,
+                    "identifier_processed": "My Quick Thoughts on Topic X" # Could be the title for text
+                },
+                {
+                    "message": "Failed to crawl URL: Timeout.",
+                    "error": "Crawl timed out (60s)",
+                    "identifier_processed": "https://very-slow-website.com"
+                }
+            ]
+        }
+    }
 
-def get_incoming_links_to_note(db: Session, note_id: int) -> List[models.Link]:
-    """
-    Retrieve all links pointing to the given note_id (note is the destination).
-    """
-    return db.query(models.Link).filter(models.Link.destination_id == note_id).all()
+# For the /ingest/file endpoint, the request data (like parent_note_id, doc_type_id)
+# will come from FastAPI's `Form` fields, and the file itself via `UploadFile`.
+# So, no specific Pydantic *request body* model is typically needed for the entire /file request,
+# unless you wanted to group all form fields into a Pydantic model that the endpoint
+# then receives as a dependency. For now, using individual Form fields in the endpoint is fine.
