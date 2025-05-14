@@ -84,3 +84,6 @@ app.log # Example specific log file
 
 # Crawl4AI cache
 .crawl4ai/
+
+
+uploaded_files/

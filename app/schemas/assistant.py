@@ -14,26 +14,26 @@ class AssistantQueryRequest(BaseModel):
     selected_note_ids: Optional[List[int]] = Field(None, description="List of specific Note IDs to use as additional context.")
     conversation_id: Optional[str] = Field(None, description="Identifier for the ongoing conversation, for context management.")
 
-    model_config = { # Pydantic v2 config example
+    model_config = {
         "json_schema_extra": {
             "examples": [
                 {
+                    "user_query": "Key points of this Note?",
+                    "use_semantic_search": True,
+                    "use_web_search": True,
+                    "selected_note_ids": [101, 105],
+                },
+                {
                     "user_query": "What were the key findings of the latest climate change report?",
-                    "use_semantic_search": False, # Example: Relying on web search
+                    "use_semantic_search": False,
                     "use_web_search": True,
                     "selected_note_ids": None,
                 },
                 {
                     "user_query": "Summarize the main points from my notes on Project Alpha.",
-                    "use_semantic_search": False, # Example: Only using selected notes
+                    "use_semantic_search": False,
                     "use_web_search": False,
                     "selected_note_ids": [101, 105, 123],
-                },
-                 {
-                    "user_query": "Compare Project Alpha with latest industry trends.",
-                    "use_semantic_search": True, # Example: Use RAG (when implemented) + web
-                    "use_web_search": True,
-                    "selected_note_ids": [101], # Optionally also include specific notes
                 }
             ]
         }

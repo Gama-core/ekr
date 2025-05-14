@@ -83,7 +83,7 @@ def update_document(
         setattr(db_doc, key, value)
 
     # Increment version or handle as per your versioning strategy
-    db_doc.version = (db_doc.version or 0) + 1
+    # db_doc.version = (db_doc.version or 0) + 1
 
     db.add(db_doc)
     db.commit()

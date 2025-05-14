@@ -112,7 +112,7 @@ if __name__ == "__main__":
 
     # URL to test
     # specific_url_to_test = "https://my.clevelandclinic.org/health/diseases/15050-vitamin-d-vitamin-d-deficiency"
-    specific_url_to_test = "https://docs.crawl4ai.com/" # Another test URL
+    specific_url_to_test = "https://ods.od.nih.gov/factsheets/VitaminD-HealthProfessional/" # Another test URL
 
     # --- Choose which config to test standalone ---
     test_with_simplified_config = False # Set to True to test with simplified run_config

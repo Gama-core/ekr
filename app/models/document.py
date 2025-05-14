@@ -33,4 +33,4 @@ class Document(Base):
     # Relationship to Communication where this doc is the image
     communications = relationship("Communication", back_populates="image")
     # Relationship via association table NoteDocument
-    notes = relationship("NoteDocument", back_populates="document") # Relationship name updated to 'notes' for consistency if desired, check NoteDocument adjustments
+    notes = relationship("NoteDocument", back_populates="document", cascade="all, delete-orphan") # Relationship name updated to 'notes' for consistency if desired, check NoteDocument adjustments

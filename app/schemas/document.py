@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 from typing import Optional
+from pydantic import HttpUrl
 
 # --- Document Type Schemas ---
 class DocumentTypeBase(BaseModel):
@@ -67,6 +68,27 @@ class DocumentTypeUpdate(BaseModel):
             "examples": [
                 {
                     "name": "Updated Web Page Type"
+                }
+            ]
+        }
+    }
+
+class DocumentCreateFromUrlRequest(BaseModel):
+    url: HttpUrl # Use HttpUrl for validation
+    name: str = Field(..., max_length=255, description="User-defined name for this URL reference")
+    doc_type_id: int
+    comment: Optional[str] = Field(None, max_length=255)
+    link_to_note_id: Optional[int] = Field(None, description="Optional ID of a Note to link this document to upon creation.")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "url": "https://example.com/article.html",
+                    "name": "Example Article Online",
+                    "doc_type_id": 1, # Assuming a DocumentType with ID 1 exists
+                    "comment": "Reference to an online article.",
+                    "link_to_note_id": 101 # Assuming a Note with ID 101 exists
                 }
             ]
         }

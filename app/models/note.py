@@ -47,4 +47,4 @@ class Note(Base):
 
     # Relationship via association table NoteDocument
     # Ensure back_populates matches the relationship name in NoteDocument model
-    documents = relationship("NoteDocument", back_populates="note")
+    documents = relationship("NoteDocument", back_populates="note", cascade="all, delete-orphan")

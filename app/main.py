@@ -4,12 +4,8 @@ import asyncio
 import sys
 from fastapi import FastAPI
 
-# --- Import Routers ---
-# Remove or comment out the old agent router import if it's being replaced
-# from app.api.v1.endpoints import agent as agent_router_v1
-from app.api.v1.endpoints import assistant as assistant_router_v1 # <-- Import the new assistant router
-# Import the main API router if you intend to include other endpoints like ingestion
-from app.api.api import api_router as main_api_router # Assuming this includes ingestion, kb, etc.
+# --- Import ONLY the top-level aggregated API router ---
+from app.api.api import api_router as application_api_router
 
 # --- Set asyncio event loop policy for Windows ---
 if sys.platform == "win32":
@@ -24,30 +20,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="AI Knowledge Management & Assistant API", # Updated Title
-    description="API for knowledge management and processing user queries using LLMs, RAG, web search, and crawling.", # Updated Description
-    version="0.3.0" # Incremented version
+    title="AI Knowledge Management & Assistant API",
+    description="API for knowledge management and processing user queries using LLMs, RAG, web search, and crawling.",
+    version="0.3.1" # Increment version slightly for this fix
 )
 
-# --- Include Routers ---
-
-# Include the new Assistant router
-app.include_router(
-    assistant_router_v1.router, # <-- Use the new assistant router variable
-    prefix="/api/v1/assistant", # <-- Use the new prefix
-    tags=["V1 - Assistant Query"] # <-- Use the new tag
-)
-
-# Remove or comment out the old agent router inclusion
-# app.include_router(
-#     agent_router_v1.router,
-#     prefix="/api/v1/agent",
-#     tags=["V1 - Agent Query"] # Deprecated tag
-# )
-
-# Include the main API router which should contain ingestion, kb, etc.
-# This assumes app/api/api.py and app/api/v1/api.py are set up to route ingestion etc.
-app.include_router(main_api_router, prefix="/api") # Includes /api/v1/ingest/* etc.
+# --- Include the single, aggregated application API router ---
+# This one line will make all your versioned API endpoints available
+# (e.g., /api/v1/assistant/*, /api/v1/ingest/*, /api/v1/kb/notes/*)
+app.include_router(application_api_router, prefix="/api")
 
 
 @app.get("/health", tags=["Health Check"])
