@@ -1,60 +1,32 @@
-﻿# app/api/v1/api.py
+# app/api/v1/api.py
 from fastapi import APIRouter
 
-# Import your endpoint routers
-from .endpoints import assistant as assistant_router
-from .endpoints import ingestion as ingestion_router
-from .endpoints import notes as notes_router
-from .endpoints import documents as documents_router
-from .endpoints import links as links_router
-from .endpoints import note_types as note_types_router         # <-- ADDED IMPORT
-from .endpoints import document_types as document_types_router # <-- ADDED IMPORT
+# Import feature endpoint routers.
+# Only import routers for features that are currently being implemented or are stable.
+from app.features.web_interaction.endpoints import router as web_interaction_router
 
-# This is the router instance for all V1 API endpoints.
-# It will be imported by the top-level API router (app/api/api.py).
+# Placeholder for assistant_router if it's being refactored into the new structure.
+# Ensure this path is correct once app/features/assistant/endpoints.py exists.
+# from app.features.assistant.endpoints import router as assistant_router
+
+# --- V1 API Router ---
+# This router aggregates all feature-specific routers for version 1 of the API.
 api_router_v1 = APIRouter()
 
-# --- Assistant API ---
+# Include the Web Interaction feature router.
 api_router_v1.include_router(
-    assistant_router.router,
-    prefix="/assistant",
-    tags=["V1 - Assistant Query"]
+    web_interaction_router,
+    prefix="/web", # Routes will be /api/v1/web/...
+    tags=["V1 - Web Interaction"] # Groups endpoints in Swagger UI.
 )
 
-# --- Ingestion API ---
-# Included ONCE. The prefix determines its final path (/api/v1/ingest)
-api_router_v1.include_router(
-    ingestion_router.router,
-    prefix="/ingest", # All ingestion endpoints under /api/v1/ingest/...
-    tags=["V1 - Ingestion"]
-)
+# Placeholder for the Assistant feature router.
+# Uncomment and adjust once app/features/assistant/endpoints.py is ready.
+# api_router_v1.include_router(
+#     assistant_router,
+#     prefix="/assistant",
+#     tags=["V1 - Assistant Query"]
+# )
 
-# --- Knowledge Base (KB) Management APIs ---
-api_router_v1.include_router(
-    notes_router.router,
-    prefix="/kb/notes", # Path: /api/v1/kb/notes/...
-    tags=["V1 - KB - Notes"]
-)
-api_router_v1.include_router(
-    documents_router.router,
-    prefix="/kb/documents", # Path: /api/v1/kb/documents/...
-    tags=["V1 - KB - Documents"]
-)
-api_router_v1.include_router(
-    links_router.router,
-    prefix="/kb/links", # Path: /api/v1/kb/links/...
-    tags=["V1 - KB - Links"]
-)
-
-# --- KB Type Management APIs ---
-api_router_v1.include_router(
-    note_types_router.router,
-    prefix="/kb/note-types", # Path: /api/v1/kb/note-types/...
-    tags=["V1 - KB - Note Types"]
-)
-api_router_v1.include_router(
-    document_types_router.router,
-    prefix="/kb/document-types", # Path: /api/v1/kb/document-types/...
-    tags=["V1 - KB - Document Types"]
-)
-
+# Future feature routers will be included here:
+# e.g., LLM Query, Knowledge Index, RAG Retrieval, Ingestion & Indexing.
