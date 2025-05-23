@@ -10,7 +10,6 @@ from pydantic import Field
 try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
-
     PSYCOPG2_AVAILABLE = True
 except ImportError:
     PSYCOPG2_AVAILABLE = False
@@ -32,7 +31,7 @@ class DbBootstrapSettings(BaseSettings):
 _db_bootstrap_settings = DbBootstrapSettings()
 
 
-def load_settings_from_db() -> Dict[str, Any]:  # Renamed back to generic
+def load_settings_from_db() -> Dict[str, Any]:
     if not (_db_bootstrap_settings.LOAD_CONFIG_FROM_DB and PSYCOPG2_AVAILABLE and
             all([_db_bootstrap_settings.DB_HOST, _db_bootstrap_settings.DB_PORT, _db_bootstrap_settings.DB_USER,
                  _db_bootstrap_settings.DB_NAME])):
@@ -49,20 +48,10 @@ def load_settings_from_db() -> Dict[str, Any]:  # Renamed back to generic
         conn = psycopg2.connect(**conn_params)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Fetch all settings; Pydantic fields will pick what they need.
-            # Or, be more specific if your table has many unrelated settings.
             query = "SELECT setting_key, setting_value FROM public.application_settings"
-            # Example of more specific query if needed:
-            # query = ("SELECT setting_key, setting_value FROM public.application_settings WHERE "
-            #          "UPPER(setting_key) LIKE 'QWEN_%' OR "
-            #          "UPPER(setting_key) LIKE 'UPLOAD_%' OR "
-            #          "UPPER(setting_key) LIKE 'VECTOR_%' OR "
-            #          "UPPER(setting_key) LIKE 'DEFAULT_CHROMA_%' OR "
-            #          "UPPER(setting_key) LIKE 'EMBEDDING_%' OR "
-            #          "UPPER(setting_key) = 'GOOGLE_API_KEY' OR " # Exact match for these
-            #          "UPPER(setting_key) = 'GOOGLE_CSE_ID'")
-            cur.execute(query)  # Using simple "fetch all" for now
+            cur.execute(query)
             for row in cur.fetchall():
-                db_cfg[row['setting_key'].upper()] = row['setting_value']
+                db_cfg[row['setting_key'].upper()] = row['setting_value'] # Ensure keys are uppercase
         logger.info(f"Loaded {len(db_cfg)} settings from DB by core config.")
     except Exception as e:
         logger.error(f"Failed to load settings from DB for core config: {e}", exc_info=True)
@@ -74,7 +63,7 @@ def load_settings_from_db() -> Dict[str, Any]:  # Renamed back to generic
 
 
 class Settings(BaseSettings):
-    # --- Third-Party API Keys (now all potentially loaded from DB by core) ---
+    # --- Third-Party API Keys ---
     GOOGLE_API_KEY: str = Field("core_default_google_api_key", repr=False)
     GOOGLE_CSE_ID: str = Field("core_default_google_cse_id")
     QWEN_API_KEY: str = Field("core_default_qwen_api_key", repr=False)
@@ -83,29 +72,28 @@ class Settings(BaseSettings):
 
     # --- Core Operational Settings ---
     UPLOAD_DIR: Path = Field(default_factory=lambda: Path("./uploaded_files_core_default"))
-    VECTOR_STORE_PATH: str = Field("./chroma_db_core_default")
-    EMBEDDING_MODEL_NAME: str = Field("all-MiniLM-L6-v2")
-    DEFAULT_CHROMA_COLLECTION_NAME: str = Field("core_knowledge_collection_default")
+
+    # --- Vector Store Configuration (FAISS) ---
+    VECTOR_STORE_PATH: str = Field("./faiss_data_default", description="Directory for storing FAISS index files and metadata.")
+    EMBEDDING_MODEL_NAME: str = Field("all-MiniLM-L6-v2", description="Sentence Transformers embedding model name.")
+
+    FAISS_INDEX_FILENAME_DEFAULT: str = Field("faiss_index.idx", description="Default filename for the FAISS index.")
+    # You might also want a setting for a FAISS metadata file, e.g.:
+    # FAISS_METADATA_FILENAME_DEFAULT: str = Field("faiss_metadata.json", description="Default filename for FAISS metadata store.")
+
 
     @classmethod
     def settings_customise_sources(cls, settings_cls, init_settings, env_settings, dotenv_settings,
                                    file_secret_settings):
         db_loaded_values = load_settings_from_db()
-
-        # logger.info(f"DEBUG core: init_settings type={type(init_settings)}, callable={callable(init_settings)}")
-        # logger.info(f"DEBUG core: env_settings type={type(env_settings)}, callable={callable(env_settings)}")
-        # logger.info(f"DEBUG core: db_loaded_values type={type(db_loaded_values)}, callable={callable(db_loaded_values)}")
-        # logger.info(f"DEBUG core: dotenv_settings type={type(dotenv_settings)}, callable={callable(dotenv_settings)}")
-        # logger.info(f"DEBUG core: file_secret_settings type={type(file_secret_settings)}, callable={callable(file_secret_settings)}")
-
-        db_source_callable = lambda: db_loaded_values  # Wrap dict in a callable
+        db_source_callable = lambda: db_loaded_values
 
         return (init_settings, env_settings, db_source_callable, dotenv_settings, file_secret_settings)
 
     model_config = SettingsConfigDict(env_file=".env", extra='ignore', case_sensitive=False)
 
 
-settings = Settings()  # Global core settings instance.
+settings = Settings()
 
 
 def ensure_directories_exist():
@@ -114,9 +102,14 @@ def ensure_directories_exist():
         upload_dir = Path(upload_dir_value) if isinstance(upload_dir_value, str) else upload_dir_value
         upload_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Core UPLOAD_DIR ensured at: {upload_dir.resolve()}")
-        logger.info(f"Core VECTOR_STORE_PATH configured to: {Path(settings.VECTOR_STORE_PATH).resolve()}")
+
+        # Ensure the directory for FAISS index exists
+        vector_store_dir_value = settings.VECTOR_STORE_PATH
+        vector_store_dir = Path(vector_store_dir_value) if isinstance(vector_store_dir_value, str) else Path(vector_store_dir_value)
+        vector_store_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Core VECTOR_STORE_PATH (for FAISS) ensured at: {vector_store_dir.resolve()}")
+
     except Exception as e:
         logger.error(f"Failed to ensure core directories: {e}", exc_info=True)
-
 
 ensure_directories_exist()

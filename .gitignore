@@ -87,3 +87,6 @@ app.log # Example specific log file
 
 
 uploaded_files/
+
+# Custom Ignores
+OLD/
