@@ -5,6 +5,8 @@ from fastapi import APIRouter
 from app.features.google_search.endpoints import router as google_search_router
 from app.features.web_crawl.endpoints import router as web_crawl_router
 from app.features.llm_query.endpoints import router as llm_query_router
+from app.features.elasticsearch.endpoints import router as elasticsearch_router
+
 
 
 # --- V1 API Router ---
@@ -32,5 +34,11 @@ api_router_v1.include_router(
     tags=["V1 - LLM Query"]
 )
 
+# Include the Elasticsearch feature router.
+api_router_v1.include_router(
+    elasticsearch_router,
+    prefix="/es", # Routes will be /api/v1/es/...
+    tags=["V1 - Elasticsearch"]
+)
 
 # e.g., Knowledge Index, RAG Retrieval, Ingestion & Indexing.
