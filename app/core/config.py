@@ -18,14 +18,26 @@ logger = logging.getLogger(__name__)
 
 # --- Bootstrap Settings from .env ---
 class DbBootstrapSettings(BaseSettings):
+    # Database Settings
     DB_HOST: Optional[str] = Field(None)
     DB_PORT: Optional[str] = Field(None)
     DB_USER: Optional[str] = Field(None)
     DB_PASSWORD: Optional[str] = Field(None, repr=False)
     DB_NAME: Optional[str] = Field(None)
     LOAD_CONFIG_FROM_DB: bool = Field(False)
-    ES_HOST: Optional[str] = Field("http://localhost:9200")
+
+    # --- Elasticsearch Core Settings (to be loaded from .env) ---
+    ES_HOST: Optional[str] = Field("http://localhost:9200") # Default, will be overridden if cloud creds are used
     ES_INDEX_NAME: Optional[str] = Field("notes_index")
+
+    # For Elastic Cloud connection
+    ES_CLOUD_ID: Optional[str] = Field(None)
+    ES_API_KEY_ID: Optional[str] = Field(None)
+    ES_API_KEY: Optional[str] = Field(None, repr=False) # repr=False for secrets
+
+    # For basic auth (generic or AWS OpenSearch with basic auth, or direct ES Cloud endpoint)
+    ES_USERNAME: Optional[str] = Field(None)
+    ES_PASSWORD: Optional[str] = Field(None, repr=False) # repr=False for secrets
 
     model_config = SettingsConfigDict(env_file=".env", extra='ignore', case_sensitive=False)
 
@@ -86,9 +98,19 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = Field("all-MiniLM-L6-v2")
     FAISS_INDEX_FILENAME_DEFAULT: str = Field("faiss_index.idx")
 
-    # Elasticsearch Configuration
-    ES_HOST: str = Field("http://localhost:9200")
-    ES_INDEX_NAME: str = Field("notes_index")
+    # --- Elasticsearch Configuration (Sourced from DbBootstrapSettings) ---
+    ES_HOST: Optional[str] = Field(default_factory=lambda: _db_bootstrap_settings.ES_HOST) # Keep for potential fallback
+    ES_INDEX_NAME: str = Field(default_factory=lambda: _db_bootstrap_settings.ES_INDEX_NAME or "notes_index")
+
+    # For Elastic Cloud connection
+    ES_CLOUD_ID: Optional[str] = Field(default_factory=lambda: _db_bootstrap_settings.ES_CLOUD_ID)
+    ES_API_KEY_ID: Optional[str] = Field(default_factory=lambda: _db_bootstrap_settings.ES_API_KEY_ID)
+    ES_API_KEY: Optional[str] = Field(default_factory=lambda: _db_bootstrap_settings.ES_API_KEY, repr=False)
+
+    # For basic auth
+    ES_USERNAME: Optional[str] = Field(default_factory=lambda: _db_bootstrap_settings.ES_USERNAME)
+    ES_PASSWORD: Optional[str] = Field(default_factory=lambda: _db_bootstrap_settings.ES_PASSWORD, repr=False)
+
 
     @classmethod
     def settings_customise_sources(cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings):
@@ -114,8 +136,18 @@ def ensure_directories_exist():
         vector_store_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"VECTOR_STORE_PATH (FAISS) ensured at: {vector_store_dir.resolve()}")
 
-        logger.info(f"Elasticsearch host: {settings.ES_HOST}")
+        # Log Elasticsearch connection info (be careful not to log secrets here)
+        if settings.ES_CLOUD_ID:
+            logger.info(f"Elasticsearch configured with Cloud ID: {settings.ES_CLOUD_ID[:15]}...") # Log only a prefix
+            logger.info(f"Elasticsearch API Key ID: {settings.ES_API_KEY_ID}")
+        elif settings.ES_HOST:
+            logger.info(f"Elasticsearch host: {settings.ES_HOST}")
+            if settings.ES_USERNAME:
+                logger.info(f"Elasticsearch username: {settings.ES_USERNAME}")
+        else:
+            logger.warning("Elasticsearch connection details (Cloud ID or Host) not found in settings.")
         logger.info(f"Elasticsearch index: {settings.ES_INDEX_NAME}")
+
 
     except Exception as e:
         logger.error(f"Failed to ensure core directories: {e}", exc_info=True)

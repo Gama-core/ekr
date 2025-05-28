@@ -1,60 +1,118 @@
 # app/features/elasticsearch/service.py
 
 import logging
-from typing import List
-# Corrected imports for Elasticsearch exceptions
+from typing import List, Optional 
 from elasticsearch import Elasticsearch, ApiError, NotFoundError, ConnectionError, TransportError
 from sqlalchemy.orm import Session
 
 from app.features.elasticsearch.config import elasticsearch_settings
-# Ensure this import path is correct for your project structure:
-from app.db_connectors.models import Note # Or wherever your Note SQLAlchemy model is defined
+from app.db_connectors.models import Note 
 from app.features.elasticsearch.helpers import build_es_document
 
 logger = logging.getLogger(__name__)
 
 class ElasticsearchService:
     def __init__(self):
-        self.index_name = elasticsearch_settings.INDEX_NAME
-        self.es_hosts_list = elasticsearch_settings.HOSTS_LIST # Assuming HOSTS_LIST from adjusted config
-        self.es = None
+        self.index_name: str = elasticsearch_settings.INDEX_NAME
+        self.es: Optional[Elasticsearch] = None
 
-        if not self.es_hosts_list:
-            logger.error(
-                "Elasticsearch hosts (HOSTS_LIST from elasticsearch_settings) are not configured or ES_HOST_URL is empty. "
-                "Elasticsearch client will not be initialized."
+        connection_params = {}
+        connection_type = "None"
+        is_cloud_connection = False # Flag to check if it's a cloud_id connection
+
+        # --- Determine Connection Method ---
+        # Priority 1: Elastic Cloud ID and API Key
+        if elasticsearch_settings.ES_CLOUD_ID and \
+           elasticsearch_settings.ES_API_KEY_ID and \
+           elasticsearch_settings.ES_API_KEY:
+            logger.info(
+                f"Attempting to initialize Elasticsearch client using Elastic Cloud ID: "
+                f"{elasticsearch_settings.ES_CLOUD_ID[:15]}... and API Key ID."
             )
-            return
+            connection_params = {
+                "cloud_id": elasticsearch_settings.ES_CLOUD_ID,
+                "api_key": (elasticsearch_settings.ES_API_KEY_ID, elasticsearch_settings.ES_API_KEY)
+            }
+            connection_type = f"Elastic Cloud (ID: {elasticsearch_settings.ES_CLOUD_ID[:15]}...)"
+            is_cloud_connection = True # Set the flag
 
-        logger.info(f"Attempting to initialize Elasticsearch client with hosts: {self.es_hosts_list}")
+        # Priority 2: ES_HOST_URL (e.g., for AWS OpenSearch, self-managed, or direct Elastic Cloud endpoint)
+        elif elasticsearch_settings.ES_HOST_URL:
+            self.es_hosts_list: List[str] = elasticsearch_settings.HOSTS_LIST
+            if not self.es_hosts_list:
+                logger.error(
+                    "ES_HOST_URL is configured but HOSTS_LIST is empty. "
+                    "Elasticsearch client will not be initialized."
+                )
+                return 
+
+            logger.info(f"Attempting to initialize Elasticsearch client with hosts: {self.es_hosts_list}")
+            connection_params = {"hosts": self.es_hosts_list}
+            connection_type = f"Direct Host(s): {self.es_hosts_list}"
+
+            if elasticsearch_settings.ES_USERNAME and elasticsearch_settings.ES_PASSWORD:
+                connection_params["basic_auth"] = (
+                    elasticsearch_settings.ES_USERNAME,
+                    elasticsearch_settings.ES_PASSWORD
+                )
+                logger.info(f"Using Basic Auth with username: {elasticsearch_settings.ES_USERNAME}")
+                connection_type += f" (with Basic Auth User: {elasticsearch_settings.ES_USERNAME})"
+            
+        else:
+            logger.error(
+                "Elasticsearch connection details (neither ES_CLOUD_ID/API_KEY nor ES_HOST_URL) "
+                "are sufficiently configured. Elasticsearch client will not be initialized."
+            )
+            return 
+
+        # --- Attempt Connection ---
         try:
-            self.es = Elasticsearch(hosts=self.es_hosts_list)
+            # Only add timeout and retry_on_timeout if NOT using cloud_id
+            # and if connecting via hosts (Priority 2)
+            if not is_cloud_connection and "hosts" in connection_params:
+                connection_params["timeout"] = 30
+                connection_params["retry_on_timeout"] = True
+            
+            self.es = Elasticsearch(**connection_params)
 
             if not self.es.ping():
                 logger.error(
-                    f"Elasticsearch client initialized but FAILED to PING at {self.es_hosts_list}. "
-                    "Check if Elasticsearch is running, accessible, and if the URLs are correct."
+                    f"Elasticsearch client initialized but FAILED to PING using {connection_type}. "
+                    "Check connection details, network access, service status, and authentication."
                 )
                 self.es = None
             else:
                 logger.info(
                     f"ElasticsearchService successfully initialized and PINGED. "
-                    f"Connected to Elasticsearch at {self.es_hosts_list} using index '{self.index_name}'."
+                    f"Connected to Elasticsearch via {connection_type} using index '{self.index_name}'."
                 )
-        except ValueError as ve:
+        except ValueError as ve: 
             logger.error(
-                f"ValueError during Elasticsearch client initialization with hosts {self.es_hosts_list}: {ve}. "
-                "Ensure ES_HOST in core config is a complete URL (e.g., 'http://localhost:9200')."
+                f"ValueError during Elasticsearch client initialization ({connection_type}): {ve}. "
+                "Ensure ES_HOST_URL (if used) is a complete URL (e.g., 'https://...')."
             )
             self.es = None
-        except (ConnectionError, TransportError) as e: # Catch specific connection/transport errors
+        except (ConnectionError, TransportError) as e: 
             logger.error(
-                f"Elasticsearch Connection/Transport Error during client initialization with hosts {self.es_hosts_list}: {type(e).__name__} - {e}"
+                f"Elasticsearch Connection/Transport Error during client initialization ({connection_type}): {type(e).__name__} - {e}"
             )
             self.es = None
-        except Exception as e:
+        except ApiError as ae: 
+             logger.error(
+                f"Elasticsearch API Error during client initialization or ping ({connection_type}): {type(ae).__name__} - {ae}. "
+                "Check API Key permissions or username/password if using basic auth."
+            )
+             self.es = None
+        # Catch TypeError specifically for unexpected keyword arguments
+        except TypeError as te:
+            logger.error(
+                f"TypeError during Elasticsearch client initialization ({connection_type}): {te}. "
+                "This might indicate an unsupported parameter for the chosen connection method."
+            )
+            self.es = None
+        except Exception as e: 
             logger.exception(
-                f"An unexpected error occurred while initializing Elasticsearch client with hosts {self.es_hosts_list}."
+                f"An unexpected error occurred while initializing Elasticsearch client ({connection_type})."
             )
             self.es = None
 
@@ -75,10 +133,14 @@ class ElasticsearchService:
 
         es_doc = build_es_document(note)
         try:
-            self.es.index(index=self.index_name, id=str(note_id), document=es_doc, refresh="wait_for")
-            logger.info(f"Successfully indexed Note {note_id} to Elasticsearch.")
-            return True
-        except (ApiError, TransportError) as e: # Corrected exception handling
+            if self.es:
+                self.es.index(index=self.index_name, id=str(note_id), document=es_doc, refresh="wait_for")
+                logger.info(f"Successfully indexed Note {note_id} to Elasticsearch.")
+                return True
+            else: 
+                logger.error("Cannot index note: Elasticsearch client (self.es) is None.")
+                return False
+        except (ApiError, TransportError) as e:
             logger.error(f"Elasticsearch API/Transport Error indexing Note {note_id}: {type(e).__name__} - {e}")
             return False
         except Exception as e:
@@ -93,20 +155,24 @@ class ElasticsearchService:
             "query": {
                 "multi_match": {
                     "query": query,
-                    "fields": ["title", "text"] # Adjust fields as necessary
+                    "fields": ["title", "text"] 
                 }
             }
         }
         try:
-            result = self.es.search(index=self.index_name, body=es_query)
-            hits_data = result.get("hits", {}).get("hits", [])
-            hits = [hit["_source"] for hit in hits_data if "_source" in hit]
-            logger.info(f"Elasticsearch search for '{query}' found {len(hits)} results.")
-            return hits
-        except NotFoundError: # Specific handling for index not found
+            if self.es:
+                result = self.es.search(index=self.index_name, body=es_query)
+                hits_data = result.get("hits", {}).get("hits", [])
+                hits = [hit["_source"] for hit in hits_data if hit.get("_source") is not None]
+                logger.info(f"Elasticsearch search for '{query}' found {len(hits)} results.")
+                return hits
+            else: 
+                logger.error("Cannot search notes: Elasticsearch client (self.es) is None.")
+                return []
+        except NotFoundError:
             logger.warning(f"Search failed for query '{query}' because index '{self.index_name}' was not found.")
             return []
-        except (ApiError, TransportError) as e: # Corrected exception handling for other ES errors
+        except (ApiError, TransportError) as e:
             logger.error(f"Elasticsearch API/Transport Error during search for query '{query}': {type(e).__name__} - {e}")
             return []
         except Exception as e:
@@ -117,13 +183,17 @@ class ElasticsearchService:
         if not self._check_client():
             return False
         try:
-            self.es.delete(index=self.index_name, id=str(note_id), refresh="wait_for")
-            logger.info(f"Successfully deleted Note {note_id} from Elasticsearch.")
-            return True
-        except NotFoundError: # Specific handling for note or index not found
+            if self.es:
+                self.es.delete(index=self.index_name, id=str(note_id), refresh="wait_for")
+                logger.info(f"Successfully deleted Note {note_id} from Elasticsearch.")
+                return True
+            else: 
+                logger.error("Cannot delete note: Elasticsearch client (self.es) is None.")
+                return False
+        except NotFoundError:
             logger.warning(f"Note {note_id} not found in Elasticsearch (or index '{self.index_name}' not found). Could not delete.")
-            return False
-        except (ApiError, TransportError) as e: # Corrected exception handling
+            return False 
+        except (ApiError, TransportError) as e:
             logger.error(f"Elasticsearch API/Transport Error deleting Note {note_id}: {type(e).__name__} - {e}")
             return False
         except Exception as e:
