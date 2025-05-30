@@ -90,3 +90,5 @@ uploaded_files/
 
 # Custom Ignores
 OLD/
+/Vectore_Store/
+/uploaded_files_feature_store_db_config/

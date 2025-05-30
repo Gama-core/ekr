@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from app.features.google_search.endpoints import router as google_search_router
 from app.features.web_crawl.endpoints import router as web_crawl_router
 from app.features.llm_query.endpoints import router as llm_query_router
-
+from app.features.semantic_retrieval.endpoints import router as semantic_retrieval_router
 
 # --- V1 API Router ---
 # This router aggregates all feature-specific routers for version 1 of the API.
@@ -14,23 +14,28 @@ api_router_v1 = APIRouter()
 # Include the Google Search feature router.
 api_router_v1.include_router(
     google_search_router,
-    prefix="/search", # Routes will be /api/v1/search/...
+    prefix="/search",
     tags=["V1 - Google Search"]
 )
 
 # Include the Web Crawl feature router.
 api_router_v1.include_router(
     web_crawl_router,
-    prefix="/crawl", # Routes will be /api/v1/crawl/...
+    prefix="/crawl",
     tags=["V1 - Web Crawl"]
 )
 
 # Include the LLM Query feature router.
 api_router_v1.include_router(
     llm_query_router,
-    prefix="/llm", # Routes will be /api/v1/llm/...
+    prefix="/llm",
     tags=["V1 - LLM Query"]
 )
 
+# Include the Semantic Retrieval (RAG) feature router
+api_router_v1.include_router(
+    semantic_retrieval_router,
+    prefix="/semantic-retrieval",
+    tags=["V1 - Semantic Retrieval (RAG)"]
+)
 
-# e.g., Knowledge Index, RAG Retrieval, Ingestion & Indexing.
