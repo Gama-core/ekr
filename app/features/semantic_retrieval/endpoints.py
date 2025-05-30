@@ -1,21 +1,19 @@
 # app/features/semantic_retrieval/endpoints.py
 import logging
-from fastapi import APIRouter, HTTPException, status, Depends
-from sqlalchemy.orm import Session  # For DB session dependency
+from fastapi import APIRouter, HTTPException, status, Depends, BackgroundTasks
+from sqlalchemy.orm import Session
 from typing import List, Optional
 
-# Core and DB connector imports
-from app.core.database import get_db  # To get DB session for certain operations
+from app.core.database import get_db, SessionLocal as AppSessionLocal  # For background tasks
 
-# Feature specific imports
 from app.features.semantic_retrieval import index_service, retrieval_service
 from app.features.semantic_retrieval.schemas import (
     RetrieveRequest, RetrieveResponse,
-    IndexSingleNoteRequest, IndexNoteByIdRequest, IndexBatchNotesRequest, IndexOperationResponse,
-    DeleteFromIndexRequest,
+    IndexSingleNoteRequest, IndexNoteByIdRequest, IndexOperationResponse,
+    UserNotesIndexOperationResponse,  # Added this
     IndexStatsResponse, RebuildStatusResponse
 )
-# Assuming NoteForIndex and NoteReaderService are for fetching note data from DB
+
 from app.db_connectors.note_reader_service import get_note_by_id_for_indexing
 from app.db_connectors.schemas import NoteForIndex as DBNoteForIndexSchema
 
@@ -27,19 +25,29 @@ router = APIRouter()
 @router.post(
     "/retrieve",
     response_model=RetrieveResponse,
-    summary="Retrieve Relevant Context (RAG)",
-    description="Given a query, retrieves the most semantically relevant text chunks from the indexed knowledge base.",
+    summary="Retrieve Relevant Context (RAG) for a User",
+    description="Given a query and user_id, retrieves semantically relevant text chunks, filtered for the specified user and excluding logically deleted items.",
 )
 async def retrieve_context_endpoint(request: RetrieveRequest):
+    # TODO: Secure this. Authenticate user and ensure 'request.user_id' matches authenticated user or an admin.
+    logger.info(f"Retrieval request for user_id: {request.user_id}, query: '{request.query[:30]}...'")
     try:
         items, message = await retrieval_service.retrieve_relevant_context(
             query_text=request.query,
+            user_id=request.user_id,  # Pass user_id to the service
             top_k_override=request.top_k
         )
-        return RetrieveResponse(query_echo=request.query, retrieved_items=items, message=message)
+        return RetrieveResponse(
+            query_echo=request.query,
+            user_id_echo=request.user_id,  # Echo back the user_id
+            retrieved_items=items,
+            message=message
+        )
     except Exception as e:
-        logger.exception(f"Unexpected error in /retrieve endpoint for query '{request.query[:50]}...': {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error retrieving context.")
+        logger.exception(
+            f"Unexpected error in /retrieve endpoint for query '{request.query[:50]}...' by user {request.user_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error retrieving context: {str(e)}")
 
 
 # --- Index Management Endpoints ---
@@ -48,55 +56,58 @@ async def retrieve_context_endpoint(request: RetrieveRequest):
     "/index/note/by-id",
     response_model=IndexOperationResponse,
     summary="Index a Single Note by ID",
-    description="Fetches a note by its ID from the database and adds/updates it in the vector index.",
+    description="Fetches a note by its ID from the database and adds/updates it in the vector index (DocStore updated, new vectors added to FAISS).",
     status_code=status.HTTP_201_CREATED,
 )
 async def index_note_by_id_endpoint(
         request: IndexNoteByIdRequest,
         db: Session = Depends(get_db)
 ):
+    # TODO: For user-specific systems, ensure the client is authorized to index this note_id (e.g., based on note's owner_id).
     note_to_index: Optional[DBNoteForIndexSchema] = await get_note_by_id_for_indexing(db, request.note_id)
     if not note_to_index:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Note with ID {request.note_id} not found in database.")
-
     try:
         success, message, doc_id = index_service.add_note_to_index(note_to_index)
-        response_status = "success" if success else "failed"
-        http_status = status.HTTP_201_CREATED if success else status.HTTP_500_INTERNAL_SERVER_ERROR
+        response_status_str = "success" if success else "failed"
+        http_status_code = status.HTTP_201_CREATED if success else status.HTTP_500_INTERNAL_SERVER_ERROR
 
-        if not success:  # Raise if service indicated failure
-            raise HTTPException(status_code=http_status, detail=message)
+        if not success:
+            raise HTTPException(status_code=http_status_code, detail=message)
 
-        return IndexOperationResponse(status=response_status, note_id=request.note_id, doc_id=doc_id, message=message)
+        return IndexOperationResponse(status=response_status_str, note_id=request.note_id, doc_id=doc_id,
+                                      message=message)
+    except HTTPException:
+        raise  # Re-raise if it's already an HTTPException (like from the line above)
     except Exception as e:
         logger.exception(f"Error indexing note ID {request.note_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to index note: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Failed to index note by ID: {str(e)}")
 
 
 @router.post(
     "/index/note/direct",
     response_model=IndexOperationResponse,
     summary="Index a Single Note with Provided Data",
-    description="Adds/updates a note in the vector index using the provided note data.",
+    description="Adds/updates a note in the vector index using provided data (DocStore updated, new vectors added to FAISS).",
     status_code=status.HTTP_201_CREATED,
 )
 async def index_note_direct_endpoint(request: IndexSingleNoteRequest):
+    # TODO: Ensure client is authorized to index this note (e.g., check request.note.owner_id against authenticated user).
     try:
-        # Ensure the input conforms to DBNoteForIndexSchema if there are subtle differences,
-        # or adjust IndexSingleNoteRequest.note to be exactly DBNoteForIndexSchema.
-        # For now, assuming request.note is already compatible.
         note_data_to_index: DBNoteForIndexSchema = request.note
-
         success, message, doc_id = index_service.add_note_to_index(note_data_to_index)
-        response_status = "success" if success else "failed"
-        http_status = status.HTTP_201_CREATED if success else status.HTTP_500_INTERNAL_SERVER_ERROR
+        response_status_str = "success" if success else "failed"
+        http_status_code = status.HTTP_201_CREATED if success else status.HTTP_500_INTERNAL_SERVER_ERROR
 
         if not success:
-            raise HTTPException(status_code=http_status, detail=message)
+            raise HTTPException(status_code=http_status_code, detail=message)
 
-        return IndexOperationResponse(status=response_status, note_id=note_data_to_index.id, doc_id=doc_id,
+        return IndexOperationResponse(status=response_status_str, note_id=note_data_to_index.id, doc_id=doc_id,
                                       message=message)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error indexing note directly (ID: {request.note.id}): {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -106,69 +117,158 @@ async def index_note_direct_endpoint(request: IndexSingleNoteRequest):
 @router.delete(
     "/index/note/{note_id}",
     response_model=IndexOperationResponse,
-    summary="Delete a Note from Index",
-    description="Removes a note and its associated chunks from the vector index by its original database ID.",
+    summary="Logically Delete a Note from Index",
+    description="Logically removes a note by its ID from the index (removes from DocStore). Physical vector cleanup occurs during rebuilds.",
 )
 async def delete_note_from_index_endpoint(note_id: int):
+    # TODO: Secure this. Ensure client is authorized to delete this specific note_id (e.g., check owner).
     try:
-        success, message, doc_id = index_service.delete_note_from_index(note_id)
-        response_status = "success" if success else "failed"  # or "not_found" if applicable from service
+        success, message, doc_id = index_service.delete_note_from_index(note_id, persist_changes=True)
 
-        if not success and "not found" not in message.lower() and "not have been indexed" not in message.lower():  # if actual failure
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=message)
-        if not success and (
-                "not found" in message.lower() or "not have been indexed" in message.lower()):  # if it wasn't there to begin with
-            # Still return 200 or 204, but indicate it in message
-            return IndexOperationResponse(status="not_found", note_id=note_id, doc_id=doc_id, message=message)
+        current_status_str = "logically_deleted"
+        http_status_code = status.HTTP_200_OK
 
-        return IndexOperationResponse(status=response_status, note_id=note_id, doc_id=doc_id, message=message)
+        if not success:  # This means a more fundamental error in the service call itself
+            current_status_str = "failed"
+            http_status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        elif "not found" in message.lower():  # Service indicated it wasn't there
+            current_status_str = "not_found"
+            # http_status_code = status.HTTP_404_NOT_FOUND # Or keep 200 with status "not_found"
+
+        if http_status_code >= 400:  # If it's an error status
+            raise HTTPException(status_code=http_status_code, detail=message)
+
+        return IndexOperationResponse(status=current_status_str, note_id=note_id, doc_id=doc_id, message=message)
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception(f"Error deleting note ID {note_id} from index: {e}")
+        logger.exception(f"Error logically deleting note ID {note_id} from index: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Failed to delete note from index: {str(e)}")
+                            detail=f"Failed to logically delete note: {str(e)}")
 
 
 @router.get(
     "/index/stats",
     response_model=IndexStatsResponse,
     summary="Get Index Statistics",
-    description="Retrieves statistics about the current vector index, such as the total number of indexed vectors.",
+    description="Retrieves statistics about the current vector index (FAISS vector count, DocStore doc count, FAISS type).",
 )
 async def get_index_stats_endpoint():
     try:
         count, message = index_service.get_index_statistics()
-        if "Error" in message or "not available" in message:  # Check if service indicated an error
+        if "Error" in message or "not available" in message or "not fully initialized" in message:  # Check if service indicated an error state
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=message)
         return IndexStatsResponse(total_indexed_vectors=count, message=message)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error getting index statistics: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Failed to retrieve index statistics.")
+                            detail=f"Failed to retrieve index statistics: {str(e)}")
+
+
+async def _background_rebuild_task(db_session_factory, force_rebuild_flag: bool,
+                                   user_id_to_rebuild: Optional[int] = None):
+    """Helper for running rebuild tasks in the background."""
+    db_bg = db_session_factory()
+    try:
+        if user_id_to_rebuild is not None:
+            logger.info(f"Background task started: Rebuilding index for user_id {user_id_to_rebuild}.")
+            notes_processed, vectors_added, msg = await index_service.rebuild_index_for_user(db_bg, user_id_to_rebuild)
+            logger.info(
+                f"Background task finished for user_id {user_id_to_rebuild}: {msg}. Processed: {notes_processed}, New Nodes: {vectors_added}")
+        else:  # Full rebuild
+            logger.info(f"Background task started: Full index rebuild (force_rebuild={force_rebuild_flag}).")
+            notes_processed, vectors_added = await index_service.build_full_index(db_bg,
+                                                                                  force_rebuild=force_rebuild_flag)
+            logger.info(
+                f"Background task finished for full rebuild. Processed: {notes_processed}, Total Vectors: {vectors_added}")
+    except Exception as e_bg:
+        if user_id_to_rebuild is not None:
+            logger.exception(f"Background task failed: Rebuilding index for user_id {user_id_to_rebuild}: {e_bg}")
+        else:
+            logger.exception(f"Background full rebuild task failed: {e_bg}")
+    finally:
+        db_bg.close()
 
 
 @router.post(
     "/index/rebuild",
     response_model=RebuildStatusResponse,
-    summary="Trigger Full Index Rebuild",
-    description="Triggers a full rebuild of the vector index from all notes in the database. This can be a long operation.",
-    status_code=status.HTTP_202_ACCEPTED  # Accepted, as it's a long process
+    summary="Trigger Full Index Rebuild (All Users)",
+    description="Triggers a full rebuild of the vector index from all notes in the database. Accepted for background processing.",
+    status_code=status.HTTP_202_ACCEPTED
 )
-async def rebuild_index_endpoint(db: Session = Depends(get_db)):
-    # Note: For a true long-running task, use BackgroundTasks.
-    # For now, this will block until completion if build_full_index is fully synchronous.
-    # If build_full_index becomes async, this endpoint can await it.
-    logger.info("Full index rebuild endpoint triggered.")
+async def rebuild_full_index_endpoint(background_tasks: BackgroundTasks, db: Session = Depends(
+    get_db)):  # db just to show it can be passed if needed by service
+    # TODO: Secure this. This is a system-wide admin operation.
+    logger.info("Full index rebuild endpoint triggered. Task (force_rebuild=True) will run in background.")
+    background_tasks.add_task(_background_rebuild_task, AppSessionLocal, force_rebuild_flag=True,
+                              user_id_to_rebuild=None)
+    return RebuildStatusResponse(status="accepted",
+                                 message="Full index rebuild process accepted (force_rebuild=True) and initiated in background.")
+
+
+@router.delete(
+    "/index/user/{user_id_in_path}/notes",
+    response_model=UserNotesIndexOperationResponse,
+    summary="Logically Delete All Indexed Notes for a User",
+    description="Logically removes all notes for a specified user from the index (removes from DocStore). Physical cleanup during rebuilds.",
+)
+async def delete_user_notes_from_index_endpoint(
+        user_id_in_path: int,
+        db: Session = Depends(get_db)  # db session to fetch user's notes
+):
+    # TODO: Secure this. Ensure client is authorized to delete notes for user_id_in_path.
+    logger.info(f"Endpoint triggered: Logically delete all notes for user_id {user_id_in_path} from index.")
     try:
-        # This is a synchronous call as implemented in index_service.
-        # If it's very long, use FastAPI's BackgroundTasks.
-        notes_processed, vectors_added = await index_service.build_full_index(db, force_rebuild=True)
-        message = f"Index rebuild completed. Notes processed: {notes_processed}. Total vectors in index: {vectors_added}."
-        logger.info(message)
-        return RebuildStatusResponse(status="completed", message=message, notes_processed=notes_processed,
-                                     vectors_added=vectors_added)
+        success, message, count_targeted = await index_service.delete_notes_by_user_from_index(db, user_id_in_path,
+                                                                                               persist_changes=True)
+
+        response_status_str = "logically_deleted_some_or_all"
+        http_status_code = status.HTTP_200_OK
+
+        if not success:  # Should indicate a more fundamental failure
+            response_status_str = "failed_to_process_fully"
+            http_status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        elif count_targeted == 0 and "No notes found" in message:  # Handled by service, but good to have distinct status
+            response_status_str = "no_notes_found_for_user_in_db"
+
+        if http_status_code >= 400:
+            raise HTTPException(status_code=http_status_code, detail=message)
+
+        return UserNotesIndexOperationResponse(
+            status=response_status_str,
+            user_id=user_id_in_path,
+            notes_targeted_count=count_targeted,
+            message=message
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception("Error during full index rebuild trigger.")
-        # Cannot return 500 here as it might have started in background
-        # For now, since it's sync, 500 is okay if it fails during the call.
+        logger.exception(f"Unexpected error logically deleting notes for user {user_id_in_path} from index: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Failed to complete index rebuild: {str(e)}")
+                            detail=f"Failed to logically delete user notes: {str(e)}")
+
+
+@router.post(
+    "/index/user/{user_id_in_path}/rebuild",
+    response_model=RebuildStatusResponse,
+    summary="Rebuild Index for a Specific User's Notes",
+    description="Logically clears and re-indexes all notes for the specified user. Accepted for background processing.",
+    status_code=status.HTTP_202_ACCEPTED
+)
+async def rebuild_user_index_endpoint(
+        user_id_in_path: int,
+        background_tasks: BackgroundTasks,
+        # db: Session = Depends(get_db) # Not strictly needed here if background task gets its own session
+):
+    # TODO: Secure this. Ensure client is authorized to rebuild index for user_id_in_path.
+    logger.info(f"Endpoint triggered: Rebuild index for user_id {user_id_in_path}. Task will run in background.")
+    background_tasks.add_task(_background_rebuild_task, AppSessionLocal, force_rebuild_flag=False,
+                              user_id_to_rebuild=user_id_in_path)
+    return RebuildStatusResponse(
+        status="accepted",
+        user_id=user_id_in_path,
+        message=f"Index rebuild process for user_id {user_id_in_path} has been accepted and initiated in the background."
+    )
