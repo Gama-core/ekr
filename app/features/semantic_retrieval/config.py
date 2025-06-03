@@ -10,7 +10,6 @@ class SemanticRetrievalSettings(BaseModel):
         description="Default number of top similar documents/chunks to retrieve."
     )
 
-
     DEFAULT_CHUNK_SIZE: int = Field(
         default=512,
         description="Default chunk size for LlamaIndex node parsing within this feature."
