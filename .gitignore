@@ -56,7 +56,7 @@ cover/
 env/
 venv/
 .venv/ # Your virtual environment folder
-
+.venv/
 # IDE / Editor specific
 .idea/
 .vscode/

@@ -17,7 +17,7 @@ from app.features.semantic_retrieval.llama_ops import (
     ensure_vector_index,
     persist_index_and_vector_store,
     clear_index_storage_completely,
-    refresh_document_in_index, # Not directly used in build_full_index
+    refresh_document_in_index,
     get_global_vector_index,
     get_global_faiss_vector_store,
     get_faiss_index_type_description,
@@ -44,7 +44,7 @@ async def build_full_index(db: Session, force_rebuild: bool = False) -> Tuple[in
     if force_rebuild:
         clear_index_storage_completely()
 
-    index, vector_store = _get_active_index_and_store()  # This gets/creates an empty or loaded index
+    index, vector_store = _get_active_index_and_store()
     if not index or not vector_store:
         logger.error("Index service: Failed to get or create active index/vector store for full build.")
         return 0, 0
@@ -85,7 +85,7 @@ async def build_full_index(db: Session, force_rebuild: bool = False) -> Tuple[in
         f"from {notes_processed_count} DB notes..."
     )
 
-    # --- MODIFICATION START ---
+
     # Instead of VectorStoreIndex.from_documents directly on a potentially new StorageContext,
     # ensure we are using the already initialized index object (which should be empty if rebuilding)
     # and insert nodes into it.
@@ -107,7 +107,6 @@ async def build_full_index(db: Session, force_rebuild: bool = False) -> Tuple[in
             # Persist whatever might have been partially indexed before erroring
             persist_index_and_vector_store(index, vector_store)
             raise  # Re-raise the exception to indicate build failure
-    # --- MODIFICATION END ---
 
     final_vectors = vector_store._faiss_index.ntotal
     final_docs_in_docstore = len(index.docstore.docs) if index.docstore else 0
@@ -115,14 +114,10 @@ async def build_full_index(db: Session, force_rebuild: bool = False) -> Tuple[in
         f"Index service: Index build complete. DB Notes processed: {notes_processed_count}. "
         f"LlamaDocs indexed: {len(all_llama_documents)}. "
         f"Docs in Docstore: {final_docs_in_docstore}. "
-        f"Total vectors in FAISS (IndexIDMap): {final_vectors}."
+        f"Total vectors in FAISS ({get_faiss_index_type_description(vector_store)}): {final_vectors}."
     )
     persist_index_and_vector_store(index, vector_store)
     return notes_processed_count, final_vectors
-
-
-# ... (rest of the index_service.py file remains the same) ...
-
 
 def add_or_update_note_in_index(note_data: DBNoteForIndexSchema) -> Tuple[bool, str, Optional[str]]:
     logger.info(f"Index service: Adding/updating note ID {note_data.id} ('{note_data.title}') in index.")

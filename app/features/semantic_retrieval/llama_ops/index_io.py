@@ -34,66 +34,58 @@ def ensure_faiss_vector_store_with_idmap(recreate: bool = False) -> FaissVectorS
     embedding_dim = core_settings.ACTIVE_EMBEDDING_DIMENSION
 
     if global_faiss_store and not recreate:
-        if not isinstance(global_faiss_store._faiss_index, faiss.IndexIDMap):
+        # Check if it's IndexFlatL2 and dimension matches
+        if not isinstance(global_faiss_store._faiss_index, faiss.IndexFlatL2):
             logger.warning(
-                f"Llama_ops: Global FAISS store is not IndexIDMap (type: {type(global_faiss_store._faiss_index)}). Forcing recreation with IndexIDMap.")
+                f"Llama_ops: Global FAISS store is not IndexFlatL2 (type: {type(global_faiss_store._faiss_index)}). Forcing recreation with IndexFlatL2.")
             recreate = True
-        elif global_faiss_store._faiss_index.d != embedding_dim:  # d is dimension for IndexIDMap's underlying index
-            actual_dim = global_faiss_store._faiss_index.index.d if hasattr(global_faiss_store._faiss_index,
-                                                                            'index') else global_faiss_store._faiss_index.d
-            if actual_dim != embedding_dim:
-                logger.warning(f"Llama_ops: Global FAISS store dimension ({actual_dim}) "
-                               f"differs from config ({embedding_dim}). Forcing recreation.")
-                recreate = True
+        elif global_faiss_store._faiss_index.d != embedding_dim:
+            logger.warning(f"Llama_ops: Global FAISS store dimension ({global_faiss_store._faiss_index.d}) "
+                           f"differs from config ({embedding_dim}). Forcing recreation.")
+            recreate = True
         else:
             return global_faiss_store
 
     if recreate:
-        logger.info("Llama_ops: Recreating FAISS vector store with IndexIDMap.")
-        set_global_faiss_vector_store(None)  # Clear global to force re-creation path below
+        logger.info("Llama_ops: Recreating FAISS vector store with IndexFlatL2.")
+        set_global_faiss_vector_store(None)
 
-    faiss_idmap_index: Optional[faiss.IndexIDMap] = None
+    faiss_flat_index: Optional[faiss.IndexFlatL2] = None
 
     if faiss_index_path_obj.exists() and not recreate:
-        logger.info(f"Llama_ops: Loading FAISS IndexIDMap from: {faiss_index_path_obj}")
+        logger.info(f"Llama_ops: Loading FAISS IndexFlatL2 from: {faiss_index_path_obj}")
         try:
             loaded_raw_faiss_index = faiss.read_index(str(faiss_index_path_obj))
-            if not isinstance(loaded_raw_faiss_index, faiss.IndexIDMap):
+            if not isinstance(loaded_raw_faiss_index, faiss.IndexFlatL2):
                 logger.warning(
-                    f"Llama_ops: Loaded FAISS index from {faiss_index_path_obj} is {type(loaded_raw_faiss_index)}, not IndexIDMap. "
-                    "Recreating as IndexIDMap wrapping IndexFlatL2 for robust ID management and deletion."
+                    f"Llama_ops: Loaded FAISS index from {faiss_index_path_obj} is {type(loaded_raw_faiss_index)}, not IndexFlatL2. Recreating."
                 )
-                clear_index_storage_completely()  # Clear old incompatible files
-                flat_index = faiss.IndexFlatL2(embedding_dim)
-                faiss_idmap_index = faiss.IndexIDMap(flat_index)
+                clear_index_storage_completely() # Clear old incompatible files
+                faiss_flat_index = faiss.IndexFlatL2(embedding_dim)
+            elif loaded_raw_faiss_index.d != embedding_dim:
+                logger.error(
+                    f"Llama_ops: FAISS IndexFlatL2 dimension mismatch! Disk: {loaded_raw_faiss_index.d}, Config: {embedding_dim}. Recreating.")
+                clear_index_storage_completely()
+                faiss_flat_index = faiss.IndexFlatL2(embedding_dim)
             else:
-                # Check dimension of the sub-index
-                current_dim = loaded_raw_faiss_index.index.d if hasattr(loaded_raw_faiss_index,
-                                                                        'index') else loaded_raw_faiss_index.d
-                if current_dim != embedding_dim:
-                    logger.error(
-                        f"Llama_ops: FAISS IndexIDMap's sub-index dimension mismatch! Disk: {current_dim}, Config: {embedding_dim}. Recreating.")
-                    clear_index_storage_completely()
-                    flat_index = faiss.IndexFlatL2(embedding_dim)
-                    faiss_idmap_index = faiss.IndexIDMap(flat_index)
-                else:
-                    faiss_idmap_index = loaded_raw_faiss_index
-                    logger.info(
-                        f"Llama_ops: FAISS IndexIDMap (sub-index type: {type(faiss_idmap_index.index)}) loaded with {faiss_idmap_index.ntotal} vectors.")
+                faiss_flat_index = loaded_raw_faiss_index
+                logger.info(
+                    f"Llama_ops: FAISS IndexFlatL2 loaded with {faiss_flat_index.ntotal} vectors.")
         except Exception as e:
             logger.warning(
-                f"Llama_ops: Failed to load or validate FAISS IndexIDMap from {faiss_index_path_obj} (Error: {e}). Creating new one.")
-            flat_index = faiss.IndexFlatL2(embedding_dim)
-            faiss_idmap_index = faiss.IndexIDMap(flat_index)
+                f"Llama_ops: Failed to load or validate FAISS IndexFlatL2 from {faiss_index_path_obj} (Error: {e}). Creating new one.")
+            faiss_flat_index = faiss.IndexFlatL2(embedding_dim)
     else:
-        logger.info(f"Llama_ops: Creating new FAISS IndexFlatL2 wrapped in IndexIDMap (dim: {embedding_dim}).")
-        flat_index = faiss.IndexFlatL2(embedding_dim)
-        faiss_idmap_index = faiss.IndexIDMap(flat_index)
+        logger.info(f"Llama_ops: Creating new FAISS IndexFlatL2 (dim: {embedding_dim}).")
+        faiss_flat_index = faiss.IndexFlatL2(embedding_dim)
 
-    new_faiss_store = FaissVectorStore(faiss_index=faiss_idmap_index)
+    new_faiss_store = FaissVectorStore(faiss_index=faiss_flat_index)
     set_global_faiss_vector_store(new_faiss_store)
     return new_faiss_store
 
+
+# ensure_vector_index function remains largely the same, but its logging might change slightly
+# based on the vector_store it gets.
 
 def ensure_vector_index(recreate_faiss: bool = False) -> VectorStoreIndex:
     global_vector_index = get_global_vector_index()
@@ -103,16 +95,16 @@ def ensure_vector_index(recreate_faiss: bool = False) -> VectorStoreIndex:
         logger.info("Llama_ops: Recreating FAISS store, will also re-initialize LlamaIndex VectorStoreIndex.")
         set_global_vector_index(None)
 
-    current_vector_index = get_global_vector_index()  # Re-fetch
+    current_vector_index = get_global_vector_index() # Re-fetch
     if current_vector_index and not recreate_faiss:
-        if current_vector_index.vector_store is not get_global_faiss_vector_store():
+        if current_vector_index.vector_store is not get_global_faiss_vector_store(): # type: ignore
             logger.warning("Llama_ops: Mismatch VectorStoreIndex's vector_store and global. Re-linking.")
-            current_vector_index._vector_store = get_global_faiss_vector_store()  # type: ignore
+            current_vector_index._vector_store = get_global_faiss_vector_store() # type: ignore
         return current_vector_index
 
-    vector_store = ensure_faiss_vector_store_with_idmap(recreate=recreate_faiss)
+    vector_store = ensure_faiss_vector_store_with_idmap(recreate=recreate_faiss) # Name is now misleading
     if not vector_store:
-        raise RuntimeError("Llama_ops: Failed to initialize FaissVectorStore with IndexIDMap.")
+        raise RuntimeError("Llama_ops: Failed to initialize FaissVectorStore with IndexFlatL2.")
 
     storage_context_path = core_settings.VECTOR_STORE_PATH
     docstore_path = storage_context_path / "docstore.json"
@@ -123,7 +115,7 @@ def ensure_vector_index(recreate_faiss: bool = False) -> VectorStoreIndex:
         if recreate_faiss or not docstore_path.exists() or not index_store_path.exists():
             logger.info(
                 "Llama_ops: Initializing new LlamaIndex VectorStoreIndex structure (FAISS recreated or metadata missing).")
-            if recreate_faiss:  # Clear LlamaIndex JSONs if FAISS was fully remade
+            if recreate_faiss: # Clear LlamaIndex JSONs if FAISS was fully remade
                 for f_meta in core_settings.VECTOR_STORE_PATH.glob("*.json"): f_meta.unlink(missing_ok=True)
 
             storage_context = StorageContext.from_defaults(
@@ -131,10 +123,10 @@ def ensure_vector_index(recreate_faiss: bool = False) -> VectorStoreIndex:
                 docstore=SimpleDocumentStore(),
                 index_store=SimpleIndexStore()
             )
-            new_index = VectorStoreIndex.from_documents(
+            new_index = VectorStoreIndex.from_documents( # This will call vector_store.add()
                 [], storage_context=storage_context, embed_model=LlamaSettings.embed_model
             )
-            logger.info("Llama_ops: Initialized new empty VectorStoreIndex with IndexIDMap.")
+            logger.info("Llama_ops: Initialized new empty VectorStoreIndex with IndexFlatL2 based FAISS store.")
             persist_index_and_vector_store(new_index, vector_store)
         else:
             logger.info(f"Llama_ops: Loading VectorStoreIndex from LlamaIndex storage: {storage_context_path}...")
@@ -144,12 +136,13 @@ def ensure_vector_index(recreate_faiss: bool = False) -> VectorStoreIndex:
             new_index = load_index_from_storage(
                 storage_context, embed_model=LlamaSettings.embed_model
             )
-            new_index._vector_store = vector_store  # type: ignore
+            new_index._vector_store = vector_store # type: ignore
             faiss_total = vector_store._faiss_index.ntotal if vector_store._faiss_index else 'N/A'
             logger.info(
-                f"Llama_ops: Successfully loaded VectorStoreIndex. FAISS (IndexIDMap) has {faiss_total} vectors.")
+                f"Llama_ops: Successfully loaded VectorStoreIndex. FAISS (IndexFlatL2) has {faiss_total} vectors.")
     except Exception as e:
         logger.error(f"Llama_ops: Error loading/initializing VectorStoreIndex: {e}. Fallback to fresh.", exc_info=True)
+        # If fallback occurs, it will re-enter this function and recreate_faiss will be true
         return ensure_vector_index(recreate_faiss=True)
 
     set_global_vector_index(new_index)
@@ -168,9 +161,9 @@ def persist_index_and_vector_store(index_to_persist: Optional[VectorStoreIndex],
         logger.debug(f"Llama_ops: LlamaIndex storage context persisted to {core_settings.VECTOR_STORE_PATH}")
 
         faiss_path = core_settings.VECTOR_STORE_PATH / core_settings.FAISS_INDEX_FILENAME_DEFAULT
-        faiss.write_index(vector_store_to_persist._faiss_index, str(faiss_path))
+        faiss.write_index(vector_store_to_persist._faiss_index, str(faiss_path)) # This now saves IndexFlatL2
         logger.info(
-            f"Llama_ops: FAISS IndexIDMap persisted to {faiss_path} with {vector_store_to_persist._faiss_index.ntotal} vectors.")
+            f"Llama_ops: FAISS IndexFlatL2 persisted to {faiss_path} with {vector_store_to_persist._faiss_index.ntotal} vectors.")
     except Exception as e:
         logger.exception(f"Llama_ops: Error during index persistence: {e}")
 
@@ -193,10 +186,10 @@ def get_faiss_index_type_description(faiss_store: Optional[FaissVectorStore]) ->
         return "FAISS store not available or not initialized."
 
     f_index = faiss_store._faiss_index
-    if isinstance(f_index, faiss.IndexIDMap):
-        underlying_index = f_index.index
-        return f"IndexIDMap(sub_index: {type(underlying_index).__name__}, supports remove_ids)"
-    elif isinstance(f_index, faiss.IndexFlatL2):
+    if isinstance(f_index, faiss.IndexFlatL2): # Primary check now
         return "IndexFlatL2 (physical vector deletion via full rebuild, no ID mapping)"
+    elif isinstance(f_index, (faiss.IndexIDMap, faiss.IndexIDMap2)): # Keep for robustness if you switch back
+        underlying_index = f_index.index
+        return f"{type(f_index).__name__}(sub_index: {type(underlying_index).__name__}, supports remove_ids)"
     else:
         return f"Other ({type(f_index).__name__})"

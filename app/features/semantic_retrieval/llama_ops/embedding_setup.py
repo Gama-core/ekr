@@ -7,9 +7,11 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from app.core.config import settings as core_settings
 from app.features.semantic_retrieval.config import semantic_retrieval_config
 from app.db_connectors.schemas import NoteForIndex as DBNoteForIndexSchema
-from app.features.semantic_retrieval.llama_ops import get_llama_settings_initialized_flag, set_llama_settings_initialized_flag
+from app.features.semantic_retrieval.llama_ops import get_llama_settings_initialized_flag, \
+    set_llama_settings_initialized_flag
 
 logger = logging.getLogger(__name__)
+
 
 def initialize_llama_index_settings():
     if get_llama_settings_initialized_flag() and LlamaSettings.llm and LlamaSettings.embed_model:
@@ -49,7 +51,8 @@ def initialize_llama_index_settings():
 
 
 def db_note_to_llama_document(note_data: DBNoteForIndexSchema) -> LlamaDocument:
-    doc_id = f"note_{note_data.id}"
+    # Prepare the id for the document using the preferred 'id_' parameter name
+    document_internal_id = f"note_{note_data.id}"
     metadata = {
         "note_id": str(note_data.id),
         "title": str(note_data.title or "Untitled"),
@@ -58,4 +61,5 @@ def db_note_to_llama_document(note_data: DBNoteForIndexSchema) -> LlamaDocument:
         "source_type": "note"
     }
     text_content = note_data.text_content if note_data.text_content and note_data.text_content.strip() else " "
-    return LlamaDocument(text=text_content, doc_id=doc_id, metadata=metadata, id_=doc_id) # Ensure id_ is set for LlamaIndex
+
+    return LlamaDocument(text=text_content, id_=document_internal_id, metadata=metadata)
