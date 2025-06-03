@@ -1,6 +1,6 @@
 # app/features/semantic_retrieval/index_service.py
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
 from llama_index.core import Document as LlamaDocument, VectorStoreIndex, \
@@ -23,18 +23,20 @@ from app.features.semantic_retrieval.llama_ops import (
     set_global_vector_index
 )
 from app.core.config import settings as core_settings  # Added core_settings
+from app.features.semantic_retrieval.llama_ops.indexing_ops import remove_document_from_index
+from app.features.semantic_retrieval.llama_ops.custom_faiss_vstore import CustomFaissVectorStore # New
 
 logger = logging.getLogger(__name__)
 
 
-def _get_active_index_and_store() -> Tuple[Optional[VectorStoreIndex], Optional[FaissVectorStore]]:
-    initialize_llama_index_settings()  # This ensures LlamaSettings are populated
+def _get_active_index_and_store() -> Tuple[Optional[VectorStoreIndex], Optional[CustomFaissVectorStore]]: #MODIFIED
+    initialize_llama_index_settings()
     index = ensure_vector_index()
-    vector_store = get_global_faiss_vector_store()
-    if not index or not vector_store or not vector_store._faiss_index:
+    vector_store = get_global_faiss_vector_store() # This now returns CustomFaissVectorStore
+    if not index or not vector_store or not vector_store._faiss_index: # type: ignore
         logger.error("Index service: Index or FAISS vector store (or its internal faiss_index) unavailable.")
         return None, None
-    return index, vector_store
+    return index, cast(CustomFaissVectorStore, vector_store)
 
 
 async def build_full_index(db: Session, force_rebuild: bool = False) -> Tuple[int, int]:
@@ -212,3 +214,36 @@ def get_index_statistics() -> dict:  # Changed return type to dict to match new 
             "total_indexed_vectors": 0,  # Provide default on error
             "message": f"Error getting stats: {str(e)}"
         }
+
+
+def delete_note_from_index(note_id: int) -> Tuple[bool, str, Optional[str]]:
+    """
+    Deletes a note and its associated vectors from the index.
+    """
+    doc_id_to_delete = f"note_{note_id}"
+    logger.info(f"Index service: Attempting to delete note ID {note_id} (doc_id: {doc_id_to_delete}) from index.")
+
+    index, vector_store = _get_active_index_and_store()
+    if not index or not vector_store:
+        msg = f"Index service: Index/vector store not available for deleting doc_id {doc_id_to_delete}."
+        logger.error(msg)
+        return False, msg, doc_id_to_delete
+
+    if not index.docstore.document_exists(doc_id_to_delete):
+        msg = f"Index service: Document {doc_id_to_delete} for note ID {note_id} not found in index. No action needed for deletion."
+        logger.info(msg)
+        return True, msg, doc_id_to_delete # Idempotent: already gone or never existed
+
+    success = remove_document_from_index(index, doc_id_to_delete)
+
+    if success:
+        persist_index_and_vector_store(index, vector_store)
+        msg = f"Index service: Successfully deleted note ID {note_id} (doc_id: {doc_id_to_delete}) from index."
+        logger.info(msg)
+        return True, msg, doc_id_to_delete
+    else:
+        # Persist anyway, as some partial state might have changed or to ensure current state is saved.
+        persist_index_and_vector_store(index, vector_store)
+        msg = f"Index service: Failed to delete note ID {note_id} (doc_id: {doc_id_to_delete}) from index."
+        logger.error(msg)
+        return False, msg, doc_id_to_delete

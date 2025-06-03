@@ -167,3 +167,45 @@ async def rebuild_full_index_endpoint(background_tasks: BackgroundTasks):
     background_tasks.add_task(_background_rebuild_task, AppSessionLocal, force_rebuild_flag=True)
     return RebuildStatusResponse(status="accepted",
                                  message="Full index rebuild process accepted (force_rebuild=True) and initiated in background.")
+
+
+@router.delete(
+    "/index/note/{note_id}",
+    response_model=IndexOperationResponse,
+    summary="Delete a Single Note by ID from the Index",
+    description="Removes a note and its associated vectors from the vector index using its original database ID.",
+    status_code=status.HTTP_200_OK,  # Or HTTP_204_NO_CONTENT if no body is returned on success
+)
+async def delete_note_from_index_endpoint(
+        note_id: int,
+        # db: Session = Depends(get_db) # Not strictly needed if we only operate on the index
+):
+    logger.info(f"Endpoint /index/note/{note_id} (DELETE): Received request.")
+
+    try:
+        success, message, doc_id = index_service.delete_note_from_index(note_id)
+
+        response_status_str = "deleted" if success else "failed_to_delete"
+        if success and "not found in index" in message:  # Handle idempotent case
+            response_status_str = "not_found_in_index"
+            # For not found, a 200 is fine, or you could choose 404 if you prefer strict "resource not found"
+            # For consistency with add/update, 200 with a specific status message is okay.
+
+        http_status_code = status.HTTP_200_OK
+        if not success and response_status_str == "failed_to_delete":
+            http_status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            # Raise HTTPException for clear error reporting if desired
+            raise HTTPException(status_code=http_status_code, detail=message)
+
+        return IndexOperationResponse(
+            status=response_status_str,
+            note_id=note_id,
+            doc_id=doc_id,  # doc_id will be f"note_{note_id}"
+            message=message
+        )
+    except HTTPException:  # Re-raise if already an HTTPException
+        raise
+    except Exception as e:
+        logger.exception(f"Endpoint /index/note/{note_id} (DELETE): Error deleting note: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Failed to delete note from index: {str(e)}")
