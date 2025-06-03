@@ -110,17 +110,29 @@ async def index_note_by_id_endpoint(
 @router.get(
     "/index/stats",
     response_model=IndexStatsResponse,
-    summary="Get Index Statistics",
-    description="Retrieves statistics about the current vector index (FAISS vector count with IndexIDMap, DocStore doc count).",
+    summary="Get Detailed Index Statistics",  # Updated summary
+    description="Retrieves detailed statistics about the current vector index, configuration, and LlamaIndex settings.",
+    # Updated description
 )
 async def get_index_stats_endpoint():
     logger.info("Endpoint /index/stats called.")
     try:
-        count, message = index_service.get_index_statistics()
-        if "Error" in message or "not available" in message or "not fully initialized" in message:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=message)
-        return IndexStatsResponse(total_indexed_vectors=count, message=message)
-    except HTTPException:
+        stats_dict = index_service.get_index_statistics()
+
+        # Check if the message indicates an error state before trying to construct the full response
+        if "Error" in stats_dict.get("message", "") or \
+                "not available" in stats_dict.get("message", "") or \
+                "not fully initialized" in stats_dict.get("message", ""):
+            # If only basic error info is available, return that within the schema structure
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=stats_dict.get("message", "Service unavailable or index not ready.")
+            )
+
+        # If we have full stats, construct the response
+        return IndexStatsResponse(**stats_dict)
+
+    except HTTPException:  # Re-raise HTTPExceptions directly
         raise
     except Exception as e:
         logger.exception(f"Endpoint /index/stats: Error getting statistics: {e}")

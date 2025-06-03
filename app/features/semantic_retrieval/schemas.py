@@ -44,9 +44,27 @@ class RetrieveResponse(BaseModel):
     retrieved_items: List[RetrievedContextItem] = Field([], description="List of retrieved context items.")
     message: Optional[str] = Field(None, description="Optional message, e.g., if no items found or an error occurred.")
 
+
 class IndexStatsResponse(BaseModel):
-    total_indexed_vectors: int = Field(..., description="Total number of vectors (chunks) currently in the FAISS index.")
-    message: str = Field("Index statistics retrieved successfully.", description="Status message.")
+    total_indexed_vectors: int = Field(...,
+                                       description="Total number of vectors (chunks) currently in the FAISS index.")
+    num_docs_in_docstore: Optional[int] = Field(None,
+                                                description="Total number of source documents in the LlamaIndex DocStore.")
+
+    faiss_index_type: Optional[str] = Field(None, description="Type of the underlying FAISS index (e.g., IndexFlatL2).")
+    faiss_index_dimension: Optional[int] = Field(None, description="Dimension of the vectors in the FAISS index.")
+
+    llama_configured_chunk_size: Optional[int] = Field(None,
+                                                       description="Chunk size configured in LlamaIndex Settings.")
+    llama_configured_chunk_overlap: Optional[int] = Field(None,
+                                                          description="Chunk overlap configured in LlamaIndex Settings.")
+    llama_embedding_model_name: Optional[str] = Field(None,
+                                                      description="Embedding model name from LlamaIndex Settings.")
+    # Consider adding if useful for your context:
+    # llama_llm_model_name: Optional[str] = Field(None, description="LLM model name from LlamaIndex Settings (used for some index operations).")
+
+    index_storage_path: Optional[str] = Field(None, description="File system path to the index storage directory.")
+    message: str = Field("Index statistics retrieved successfully.", description="Overall status message.")
 
 class RebuildStatusResponse(BaseModel):
     status: str
