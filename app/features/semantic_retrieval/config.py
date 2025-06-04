@@ -11,7 +11,7 @@ class SemanticRetrievalSettings(BaseModel):
     )
 
     DEFAULT_CHUNK_SIZE: int = Field(
-        default=512,
+        default=384,
         description="Default chunk size for LlamaIndex node parsing within this feature."
     )
     DEFAULT_CHUNK_OVERLAP: int = Field(
