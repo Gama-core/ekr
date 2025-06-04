@@ -103,7 +103,10 @@ async def execute_query_against_index(
                 valid_user_items.append(item)
                 logger.debug(f"Llama_ops: Node '{doc_id_str}' is valid for user {user_id}. Added to results.")
 
-            valid_user_items.sort(key=lambda x: x.score if x.score is not None else -float('inf'), reverse=True)
+            # sort so the smallest distance (best match) is first
+            valid_user_items.sort(
+                     key = lambda x: x.score if x.score is not None else float("inf")
+            )
             final_items_for_user = valid_user_items[:actual_top_k_final]
 
             message = f"Successfully retrieved {len(final_items_for_user)} context items for user {user_id} out of {len(valid_user_items)} valid after filtering."

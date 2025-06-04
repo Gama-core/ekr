@@ -20,7 +20,7 @@ class SemanticRetrievalSettings(BaseModel):
     )
 
     FORCE_REBUILD_ON_STARTUP: bool = Field(
-        default=False,
+        default=True,
         description="Force a full rebuild of the vector index on application startup."
     )
     MAX_NOTES_FOR_INITIAL_BUILD: int = Field(

@@ -35,7 +35,7 @@ class RetrievedContextItem(BaseModel):
     doc_id: Optional[str] = Field(None, description="The LlamaIndex document ID (e.g., 'note_X').")
     title: Optional[str] = Field(None, description="Title of the source note.")
     text_chunk: str = Field(..., description="The retrieved chunk of text.")
-    score: Optional[float] = Field(None, description="Relevance score of the retrieved chunk (higher is better).")
+    score: Optional[float] = Field(None, description="Relevance score (FAISS distance) of the retrieved chunk — lower means more similar.")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata from the indexed node.")
 
 class RetrieveResponse(BaseModel):
@@ -60,15 +60,13 @@ class IndexStatsResponse(BaseModel):
                                                           description="Chunk overlap configured in LlamaIndex Settings.")
     llama_embedding_model_name: Optional[str] = Field(None,
                                                       description="Embedding model name from LlamaIndex Settings.")
-    # Consider adding if useful for your context:
-    # llama_llm_model_name: Optional[str] = Field(None, description="LLM model name from LlamaIndex Settings (used for some index operations).")
-
     index_storage_path: Optional[str] = Field(None, description="File system path to the index storage directory.")
     message: str = Field("Index statistics retrieved successfully.", description="Overall status message.")
+
 
 class RebuildStatusResponse(BaseModel):
     status: str
     message: str
-    user_id: Optional[int] = Field(None, description="User ID if rebuild was user-specific.") # Kept for potential future use
+    user_id: Optional[int] = Field(None, description="User ID if rebuild was user-specific.")  # Kept for potential future use
     notes_processed: Optional[int] = None
     vectors_added: Optional[int] = None
