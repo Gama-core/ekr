@@ -7,40 +7,24 @@ from llama_index.core import VectorStoreIndex, Document as LlamaDocument
 
 logger = logging.getLogger(__name__)
 
+def refresh_document_in_index(index: VectorStoreIndex,
+                                  llama_doc: LlamaDocument,
+                                  show_progress: bool = False) -> bool:
+        try:
+            if index.docstore.document_exists(llama_doc.id_):
+                index.refresh_ref_docs([llama_doc], show_progress=show_progress)
+            else:
+                index.insert_nodes([llama_doc])
 
-def refresh_document_in_index(
-        index: VectorStoreIndex,
-        llama_doc: LlamaDocument,
-        show_progress: bool = False
-) -> bool:
-    """
-    Refreshes (adds/updates) a single LlamaDocument in the given index.
-    LlamaIndex's refresh_ref_docs should handle deletion of old versions
-    and insertion of new ones, leveraging FaissVectorStore's delete and add
-    which in turn should use IndexIDMap's remove_ids and add_with_ids.
-    Returns True if successful, False otherwise.
-    """
-    try:
-        logger.debug(f"Llama_ops: Refreshing document ID {llama_doc.doc_id} in index.")
-        # refresh_ref_docs expects a list
-        refreshed_doc_ids = index.refresh_ref_docs([llama_doc], show_progress=show_progress)
-        if llama_doc.doc_id in refreshed_doc_ids:
-            logger.info(f"Llama_ops: Successfully refreshed document ID {llama_doc.doc_id} in index.")
-            return True
-        else:
-            logger.warning(
-                f"Llama_ops: Document ID {llama_doc.doc_id} not in refreshed_doc_ids list after refresh. {refreshed_doc_ids}")
-            # This might happen if the document was purely new and not an update of an existing one.
-            # Check if it exists in docstore now.
-            if index.docstore.document_exists(llama_doc.doc_id):
-                logger.info(
-                    f"Llama_ops: Document ID {llama_doc.doc_id} confirmed in docstore post-refresh (likely new).")
+            if index.docstore.document_exists(llama_doc.id_):
+                logger.info("Document %s successfully (re)indexed", llama_doc.id_)
                 return True
-            logger.error(f"Llama_ops: Failed to confirm refresh/addition of document ID {llama_doc.doc_id}.")
+
+            logger.error("Document %s still missing after insert/refresh", llama_doc.id_)
             return False
-    except Exception as e:
-        logger.error(f"Llama_ops: Error refreshing document ID {llama_doc.doc_id} in index: {e}", exc_info=True)
-        return False
+        except Exception as e:
+            logger.exception("Error (re)indexing %s: %s", llama_doc.id_, e)
+            return False
 
 
 def remove_document_from_index(
