@@ -89,6 +89,11 @@ class Settings(BaseSettings):
     """
     Main application settings.
     """
+    # --- Mistral AI API Settings (for OCR) ---
+    MISTRAL_API_KEY: str = Field("core_default_mistral_api_key_placeholder", repr=False)
+    MISTRAL_API_BASE_URL: str = Field("https://api.mistral.ai", description="Base URL for Mistral AI APIs.")
+    MISTRAL_OCR_DEFAULT_MODEL: str = Field("mistral-ocr-latest", description="Default Mistral model for OCR.")
+
     # --- Third-Party API Keys ---
     GOOGLE_API_KEY: str = Field("core_default_google_api_key_placeholder", repr=False)
     GOOGLE_CSE_ID: str = Field("core_default_google_cse_id_placeholder")
