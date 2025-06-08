@@ -8,6 +8,7 @@ from app.features.llm_query.endpoints import router as llm_query_router
 from app.features.semantic_retrieval.endpoints import router as semantic_retrieval_router
 from app.features.ocr.endpoints import router as ocr_router
 from app.features.quiz.endpoints import router as quiz_router
+from app.features.rss_extractor.endpoints import router as rss_extractor_router
 
 # --- V1 API Router ---
 # This router aggregates all feature-specific routers for version 1 of the API.
@@ -48,9 +49,16 @@ api_router_v1.include_router(
     tags=["V1 - OCR"]
 )
 
-# --- Include the new Quiz feature router ---
+# --- Include the Quiz feature router ---
 api_router_v1.include_router(
     quiz_router,
     prefix="/quiz",
     tags=["V1 - Quiz"]
+)
+
+# --- Include the RSS Extractor feature router ---
+api_router_v1.include_router(
+    rss_extractor_router,
+    prefix="/rss",
+    tags=["V1 - RSS Extractor"]
 )

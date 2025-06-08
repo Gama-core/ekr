@@ -21,5 +21,4 @@ class QuizFeatureSettings(BaseModel):
         description="Safety cap on the maximum number of questions that can be requested in a single API call."
     )
 
-# Create a global instance of the settings for this feature
 quiz_settings = QuizFeatureSettings()
