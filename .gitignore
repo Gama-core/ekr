@@ -1,6 +1,6 @@
 # .gitignore
 Byte-compiled / optimized / DLL files
-__pycache__/
+_pycache_/
 *.py[cod]
 *$py.class
 
@@ -56,12 +56,12 @@ cover/
 env/
 venv/
 .venv/ # Your virtual environment folder
-
+.venv/
 # IDE / Editor specific
 .idea/
 .vscode/
 *.suo
-*.ntvs*
+.ntvs
 *.njsproj
 *.sln
 *.swp
@@ -79,7 +79,7 @@ Thumbs.db
 
 # Log files
 *.log
-*.log.*
+.log.
 app.log # Example specific log file
 
 # Crawl4AI cache
@@ -90,3 +90,5 @@ uploaded_files/
 
 # Custom Ignores
 OLD/
+/Vectore_Store/
+/uploaded_files_feature_store_db_config/
