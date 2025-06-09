@@ -9,6 +9,7 @@ from app.features.semantic_retrieval.endpoints import router as semantic_retriev
 from app.features.ocr.endpoints import router as ocr_router
 from app.features.quiz.endpoints import router as quiz_router
 from app.features.rss_extractor.endpoints import router as rss_extractor_router
+from app.features.mindmap_generator.endpoints import router as mindmap_generator_router
 
 # --- V1 API Router ---
 # This router aggregates all feature-specific routers for version 1 of the API.
@@ -61,4 +62,11 @@ api_router_v1.include_router(
     rss_extractor_router,
     prefix="/rss",
     tags=["V1 - RSS Extractor"]
+)
+
+# --- Include the Mindmap Generator feature router ---
+api_router_v1.include_router(
+    mindmap_generator_router,
+    prefix="/mindmap",
+    tags=["V1 - Mindmap Generator"]
 )
