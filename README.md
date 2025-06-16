@@ -1,0 +1,49 @@
+# Extended Knowledge repository
+Extended knowledge repository is an environment where an organization can organize knowledge about subjects of interest. For each subject we can store documents and extend this knowledge base with hierarchical notes.
+Countinuous search and web crawling can enhance the knowledge base with updated insights from internet.
+
+# Objectives 
+- Store information of interest in a hierarchical notes
+- Enrich notes with content from documents, media and web pages
+- Keep notes updates using actualized content from web crawling
+- Present summaries, insights, updates
+- Provide answer based on collected knowlegde
+- Implement document life cycle from creation to archive
+
+# Use cases
+ the knowledge base can be built to gather and enrich information on any important subject as :
+ - Political context Economic war between USA and China
+ - Scientific research (Latest breakthroughs inquantum computing)
+ - Competitors monitoring (Différent solar panel vendors in MENA région market)
+
+ To start a knowledge base a subject should be developped in a hierachical manner into subtopics. it can be represented like a mindmap.
+ 
+```mermaid
+mindmap
+  root((Economic war between USA and China))
+    sub1((NVIDIA))
+      sub1a(Alternatives)
+      sub1b(Chinese companies still using NVIDIA)
+    sub2((ASML))
+      sub2a(marketshare)
+      sub2b(advanced lithography)
+        sub2b1(Clients)
+        sub2b2(endorsment)
+    sub3((Lithography))
+      sub3a(Huawei)
+      sub3b(SMIC)
+    sub4((RISC V))
+      sub4a(Processors for AI)
+ ```
+
+# High level architecture
+![image](https://github.com/user-attachments/assets/7bf3092d-7823-40e2-9980-fb4804d08eec)
+
+# Tools
+- **Database** : Postgresql for KB structure storing (but should be independant from DB).
+- **Documents indexing** : Elastic search
+- **Web crawling** : Crawl4AI
+- **Mobile app** : Flutter
+- **LLM** : Groq, DeepSeek distilled 70B
+- **RAG** : Llamaindex, Faiss
+- **Backend** : FastAPI

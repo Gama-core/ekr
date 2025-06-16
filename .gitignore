@@ -51,8 +51,8 @@ coverage.xml
 cover/
 
 # Environments
-.env
-.env.*
+#.env
+#.env.*
 env/
 venv/
 .venv/ # Your virtual environment folder
