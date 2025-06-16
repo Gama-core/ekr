@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 class Settings(BaseSettings):
     # Service Dependencies
     DATABASE_API_URL: str = Field("http://localhost:8003")
-    LLM_QUERY_API_URL: str = Field("http://localhost:8002")
 
     # LLM & Embedding Config
     QWEN_API_KEY: Optional[SecretStr] = Field(None, repr=False)
@@ -25,7 +24,7 @@ class Settings(BaseSettings):
     FAISS_INDEX_FILENAME_DEFAULT: str = Field("faiss_index.idx")
 
     # Feature Defaults
-    DEFAULT_SIMILARITY_TOP_K: int = Field(3)
+    DEFAULT_SIMILARITY_TOP_K: int = Field(3, ge=1, le=20)
     DEFAULT_CHUNK_SIZE: int = Field(384)
     DEFAULT_CHUNK_OVERLAP: int = Field(50)
     INDEX_BATCH_SIZE: int = Field(100)
@@ -36,10 +35,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode='after')
     def set_active_embedding_dimension(self) -> 'Settings':
-        # This logic can be simplified if only one provider is used, but kept for consistency
         if self.EMBEDDING_MODEL_PROVIDER == "huggingface":
             self.ACTIVE_EMBEDDING_DIMENSION = self.HF_EMBEDDING_DIMENSION
-        # Add other providers here if needed
         return self
 
 settings = Settings()
