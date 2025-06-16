@@ -1,4 +1,4 @@
-
+# app/features/semantic_retrieval/llama_ops/embedding_setup.py
 import logging
 from llama_index.core import Settings as LlamaSettings, Document as LlamaDocument
 from llama_index.llms.openai import OpenAI as LlamaOpenAI
