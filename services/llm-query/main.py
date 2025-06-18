@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+import uvicorn
 
 # Import from the app package
 from app.endpoints import router as api_router
@@ -34,5 +35,10 @@ async def health_check():
         return {"status": "degraded", "detail": "QWEN_API_KEY is not configured."}
     return {"status": "OK"}
 
-# Include all API endpoints from the router
+
 app.include_router(api_router)
+
+
+if __name__ == "__main__":
+    logger.info(f"Starting LLM Query Service on http://{settings.APP_HOST}:{settings.APP_PORT}")
+    uvicorn.run(app, host=settings.APP_HOST, port=settings.APP_PORT)

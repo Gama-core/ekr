@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import httpx
+import uvicorn
 
 from app.endpoints import router as api_router
 from app.config import settings
@@ -37,3 +38,8 @@ async def health_check():
     return {"status": "OK"}
 
 app.include_router(api_router)
+
+
+if __name__ == "__main__":
+    logger.info(f"Starting Quiz Service on http://{settings.APP_HOST}:{settings.APP_PORT}")
+    uvicorn.run(app, host=settings.APP_HOST, port=settings.APP_PORT)
