@@ -24,7 +24,9 @@ def _construct_llm_prompt(request: QuizRequest) -> Tuple[str, str]:
             "title_suggestion": f"A quiz about the provided context with {request.difficulty} difficulty.",
             "number_of_questions": request.questions,
             "difficulty_level": request.difficulty,
-            "knowledge_source_mode": request.mode
+            "knowledge_source_mode": request.mode,
+            "question_types_to_generate": request.question_types,
+            "include_code_blocks": request.include_code_block
         }
     }
     if request.mode in ["user_context", "hybrid"]:
@@ -56,13 +58,11 @@ async def generate_quiz(request: QuizRequest) -> QuizResponse:
 
     system_prompt, user_prompt = _construct_llm_prompt(request)
 
-    llm_params = request.extra_llm_params or {}
     llm_payload = {
         "user_prompt": user_prompt,
         "system_prompt": system_prompt,
-        "max_tokens": llm_params.pop("max_tokens", settings.QUIZ_MAX_TOKENS),
-        "temperature": llm_params.pop("temperature", settings.QUIZ_DEFAULT_TEMPERATURE),
-        "additional_params": llm_params
+        "max_tokens": settings.QUIZ_MAX_TOKENS,
+        "temperature": settings.QUIZ_DEFAULT_TEMPERATURE,
     }
 
     try:

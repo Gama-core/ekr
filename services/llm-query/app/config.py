@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     Settings for the LLM Query Service.
     Loads API keys and default model parameters from environment or .env file.
     """
+    APP_PORT: int = Field(8002, description="Port to run the service on.")
     QWEN_API_KEY: Optional[SecretStr] = Field(None, repr=False)
     QWEN_BASE_URL: Optional[str] = Field("https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
     QWEN_DEFAULT_MODEL: str = Field("qwen-plus")

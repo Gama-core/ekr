@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
     """Settings for the Quiz Generation Service."""
+    APP_PORT: int = Field(8004, description="Port to run the service on.")
     LLM_QUERY_SERVICE_URL: HttpUrl = Field("http://localhost:8002")
 
     QUIZ_MAX_TOKENS: int = Field(3072)
