@@ -1,0 +1,134 @@
+---
+- name: System Health Check for EKR Services
+  hosts: all
+  vars:
+    config_file: "../services-config.yml"
+    global_config: "{{ (lookup('file', config_file) | from_yaml).global }}"
+    services_config: "{{ (lookup('file', config_file) | from_yaml).services }}"
+    
+  tasks:
+    - name: Check system resources
+      setup:
+        gather_subset:
+          - hardware
+          - network
+          - virtual
+
+    - name: Display system information
+      debug:
+        msg: |
+          System Health Check
+          Hostname: {{ ansible_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Architecture: {{ ansible_architecture }}
+          CPU Cores: {{ ansible_processor_vcpus }}
+          Memory: {{ ansible_memtotal_mb }} MB
+          Disk Space: {{ ansible_mounts[0].size_total // (1024*1024*1024) }} GB
+
+    - name: Check CPU usage
+      shell: |
+        top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1
+      register: cpu_usage
+      changed_when: false
+
+    - name: Check memory usage
+      shell: |
+        free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}'
+      register: memory_usage
+      changed_when: false
+
+    - name: Check disk usage
+      shell: |
+        df -h / | awk 'NR==2{print $5}' | cut -d'%' -f1
+      register: disk_usage
+      changed_when: false
+
+    - name: Display resource usage
+      debug:
+        msg: |
+          Resource Usage:
+          CPU: {{ cpu_usage.stdout }}%
+          Memory: {{ memory_usage.stdout }}%
+          Disk: {{ disk_usage.stdout }}%
+
+    - name: Get list of all EKR services
+      shell: |
+        systemctl list-units --type=service --state=running | grep ekr- | awk '{print $1}' || true
+      register: running_services
+      changed_when: false
+
+    - name: Check status of all EKR services
+      systemd:
+        name: "{{ item }}"
+      register: service_statuses
+      loop: "{{ running_services.stdout_lines }}"
+      when: running_services.stdout_lines | length > 0
+
+    - name: Display service statuses
+      debug:
+        msg: |
+          EKR Service Status:
+          {% for service in service_statuses.results %}
+          - {{ service.item }}: {{ service.status.ActiveState }}
+          {% endfor %}
+      when: service_statuses is defined and service_statuses.results | length > 0
+
+    - name: Check for failed services
+      shell: |
+        systemctl --failed | grep ekr- || true
+      register: failed_services
+      changed_when: false
+
+    - name: Display failed services
+      debug:
+        msg: |
+          Failed EKR Services:
+          {{ failed_services.stdout | default('No failed services') }}
+
+    - name: Check log file sizes
+      shell: |
+        du -sh {{ global_config.log_directory }}/* 2>/dev/null || echo "No log files found"
+      register: log_sizes
+      changed_when: false
+
+    - name: Display log file sizes
+      debug:
+        msg: |
+          Log File Sizes:
+          {{ log_sizes.stdout }}
+
+    - name: Check for critical system errors
+      shell: |
+        journalctl --since "1 hour ago" --priority=err --no-pager | head -20 || true
+      register: system_errors
+      changed_when: false
+
+    - name: Display critical errors if any
+      debug:
+        msg: |
+          Recent Critical Errors:
+          {{ system_errors.stdout | default('No critical errors found') }}
+      when: system_errors.stdout != ""
+
+    - name: Check network connectivity
+      shell: |
+        ss -tuln | grep -E ':(800[0-9]|801[0-9])' || true
+      register: listening_ports
+      changed_when: false
+
+    - name: Display listening ports
+      debug:
+        msg: |
+          EKR Services Listening Ports:
+          {{ listening_ports.stdout | default('No EKR ports found') }}
+
+    - name: System health summary
+      debug:
+        msg: |
+          🏥 System Health Summary:
+          - CPU Usage: {{ cpu_usage.stdout }}%
+          - Memory Usage: {{ memory_usage.stdout }}%
+          - Disk Usage: {{ disk_usage.stdout }}%
+          - Running EKR Services: {{ running_services.stdout_lines | length }}
+          - Failed Services: {{ 'None' if failed_services.stdout == '' else failed_services.stdout_lines | length }}
+          - System Status: {% if cpu_usage.stdout | int < 80 and memory_usage.stdout | int < 80 and disk_usage.stdout | int < 90 %}✅ Healthy{% else %}⚠️ Needs Attention{% endif %}

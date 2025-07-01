@@ -1,0 +1,41 @@
+# Sample Ansible inventory for EKR deployment
+# Copy this file to deployment/inventory/hosts.yml and customize for your environment
+
+all:
+  hosts:
+    almalinux-staging:
+      ansible_host: "staging.example.com"  # Replace with your staging server IP/hostname
+      ansible_user: "deploy"  # Replace with your deployment user
+      ansible_ssh_private_key_file: "~/.ssh/id_rsa"  # Path to your SSH private key
+      ansible_python_interpreter: "/usr/bin/python3"
+      target_environment: "staging"
+      
+    almalinux-production:
+      ansible_host: "production.example.com"  # Replace with your production server IP/hostname
+      ansible_user: "deploy"  # Replace with your deployment user
+      ansible_ssh_private_key_file: "~/.ssh/id_rsa"  # Path to your SSH private key
+      ansible_python_interpreter: "/usr/bin/python3"
+      target_environment: "production"
+      
+  children:
+    staging:
+      hosts:
+        almalinux-staging:
+    production:
+      hosts:
+        almalinux-production:
+        
+  vars:
+    # Global variables for all hosts
+    deployment_user: "ekr"
+    ansible_ssh_pipelining: true
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    
+    # Environment-specific variables
+    staging:
+      database_url: "postgresql://user:pass@staging-db:5432/ekr"
+      log_level: "DEBUG"
+      
+    production:
+      database_url: "postgresql://user:pass@prod-db:5432/ekr"
+      log_level: "INFO"
