@@ -3,10 +3,12 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status
+import uvicorn # --- NEW: Import uvicorn ---
 
 # Import from the app package
 from app.endpoints import router as api_router
 from app.database import setup_database_engine, engine, get_db
+from app.config import settings # --- NEW: Import settings ---
 
 # --- Basic Logging Setup ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - [%(levelname)s] - %(name)s: %(message)s")
@@ -24,8 +26,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Database API Service",
-    description="Provides read-only API access to application's note data.",
-    version="1.2.0",
+    description="Provides API access to application's note data.",
+    version="1.3.0", # Bumped version for new features
     lifespan=lifespan
 )
 
@@ -45,3 +47,13 @@ async def health_check():
 
 # Include all API endpoints from the router
 app.include_router(api_router)
+
+# --- NEW: Block to make main.py executable ---
+if __name__ == "__main__":
+    logger.info(f"Starting Database API Service on http://{settings.APP_HOST}:{settings.APP_PORT}")
+    uvicorn.run(
+        "main:app",
+        host=settings.APP_HOST,
+        port=settings.APP_PORT,
+        reload=True
+    )

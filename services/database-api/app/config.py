@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     Settings for the Database API Service.
     Pydantic-settings automatically prioritizes environment variables over .env file values.
     """
+    # --- NEW: Add host and port for running the server ---
+    APP_HOST: str = Field("0.0.0.0", description="Host to run the service on.")
+    APP_PORT: int = Field(8003, description="Port to run the service on.")
+
     DB_HOST: Optional[str] = Field(None)
     DB_PORT: Optional[str] = Field("5432")
     DB_USER: Optional[str] = Field(None)
@@ -18,7 +22,7 @@ class Settings(BaseSettings):
     DB_NAME: Optional[str] = Field(None)
 
     model_config = SettingsConfigDict(
-        env_file=".env",  # Look for .env in the parent directory
+        env_file=".env",
         env_file_encoding='utf-8',
         extra='ignore',
         case_sensitive=False
