@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     APP_PORT: int = Field(8000)
     DATABASE_API_URL: str
     SEMANTIC_RETRIEVAL_API_URL: str
+    SUMMARY_API_URL: str
+    FACT_CHECK_API_URL: str
+    UPDATE_API_URL: str
+    LLM_QUERY_SERVICE_URL: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -18,4 +22,6 @@ class Settings(BaseSettings):
     )
 
 settings = Settings()
-logger.info(f"API Gateway settings loaded. DB_API: {settings.DATABASE_API_URL}, RAG_API: {settings.SEMANTIC_RETRIEVAL_API_URL}")
+# Optional: Update the log message
+logger.info(f"API Gateway settings loaded with DB, RAG, Summary, FactCheck, and Update services.")
+
