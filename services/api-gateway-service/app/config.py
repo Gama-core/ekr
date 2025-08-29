@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     FACT_CHECK_API_URL: str
     UPDATE_API_URL: str
     LLM_QUERY_SERVICE_URL: str
+    OCR_API_URL: str
+    GOOGLE_SEARCH_API_URL: str
+    WEB_CRAWL_API_URL: str
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+import uvicorn  # <-- ADD THIS IMPORT
 
 from app.endpoints import router as api_router
 from app.config import settings
@@ -30,3 +31,13 @@ async def health_check():
     return {"status": "OK"}
 
 app.include_router(api_router)
+
+# --- ADD THIS BLOCK AT THE END OF THE FILE ---
+if __name__ == "__main__":
+    logger.info(f"Starting OCR Service on http://{settings.APP_HOST}:{settings.APP_PORT}")
+    uvicorn.run(
+        "main:app",
+        host=settings.APP_HOST,
+        port=settings.APP_PORT,
+        reload=True
+    )

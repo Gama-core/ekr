@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+import uvicorn  # ADD THIS IMPORT
 
 from app.endpoints import router as api_router
 from app.config import settings
@@ -35,3 +36,11 @@ async def health_check():
 
 # Include all API endpoints from the router
 app.include_router(api_router)
+
+if __name__ == "__main__":
+    logger.info(f"Starting Google Search Service on http://{settings.APP_HOST}:{settings.APP_PORT}")
+    uvicorn.run(
+        app,
+        host=settings.APP_HOST,
+        port=settings.APP_PORT
+    )

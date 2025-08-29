@@ -4,8 +4,12 @@ from pydantic import Field
 
 logger = logging.getLogger(__name__)
 
+
 class Settings(BaseSettings):
     """Settings for the Web Crawl Service."""
+    APP_HOST: str
+    APP_PORT: int
+
     CRAWL_TIMEOUT_SECONDS: int = Field(60)
     MAX_CRAWL_CONTENT_LENGTH: int = Field(30000)
 
@@ -16,5 +20,7 @@ class Settings(BaseSettings):
         case_sensitive=False
     )
 
+
 settings = Settings()
-logger.info(f"Web Crawl settings loaded. Timeout: {settings.CRAWL_TIMEOUT_SECONDS}s, Max Length: {settings.MAX_CRAWL_CONTENT_LENGTH} chars.")
+logger.info(
+    f"Web Crawl settings loaded. Timeout: {settings.CRAWL_TIMEOUT_SECONDS}s, Max Length: {settings.MAX_CRAWL_CONTENT_LENGTH} chars.")

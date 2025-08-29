@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import ai_assistant_router
 from app.routers import notes_router
 from app.config import settings
+from app.routers import chatbot_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - [%(levelname)s] - %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ async def health_check():
 # Include the routers
 app.include_router(notes_router.router)
 app.include_router(ai_assistant_router.router)
+app.include_router(chatbot_router.router)
 
 if __name__ == "__main__":
     logger.info(f"Starting API Gateway Service on http://{settings.APP_HOST}:{settings.APP_PORT}")

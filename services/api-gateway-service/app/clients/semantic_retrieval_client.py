@@ -1,6 +1,7 @@
 # app/clients/semantic_retrieval_client.py
 import logging
 import httpx
+from typing import Dict, Any, List
 
 from fastapi import HTTPException, status
 from ..config import settings
@@ -32,3 +33,25 @@ async def delete_note_from_index(note_id: int):
         logger.info(f"Successfully triggered deletion from index for note_id: {note_id}")
     except httpx.HTTPStatusError as e:
         logger.error(f"Failed to delete note_id {note_id} from index. Status: {e.response.status_code}, Detail: {e.response.text}")
+
+async def retrieve_context(query: str, user_id: int) -> List[Dict[str, Any]]:
+    """Calls the semantic-retrieval service to get relevant note chunks."""
+    # THE FIX IS HERE: The full path from the service's root is '/rag/retrieve'
+    url = f"{settings.SEMANTIC_RETRIEVAL_API_URL}/rag/retrieve"
+    payload = {"query": query, "user_id": user_id}
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            response_data = response.json()
+            return response_data.get("retrieved_items", [])
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Failed to retrieve context for user {user_id}. Status: {e.response.status_code}, Detail: {e.response.text}")
+        # Return an empty list on failure, as the chat can proceed without RAG context.
+        return []
+    except httpx.RequestError as e:
+        logger.error(f"Could not connect to Semantic Retrieval Service at {url}: {e}")
+        # Also return an empty list on connection errors.
+        return []
+
+

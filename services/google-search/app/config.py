@@ -7,6 +7,10 @@ logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
     """Settings for the Google Search Service."""
+
+    APP_HOST: str
+    APP_PORT: int
+
     GOOGLE_API_KEY: Optional[SecretStr] = Field(None, repr=False)
     GOOGLE_CSE_ID: Optional[str] = Field(None)
     DEFAULT_NUM_GOOGLE_RESULTS: int = Field(5, ge=1, le=10)

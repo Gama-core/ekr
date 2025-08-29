@@ -14,24 +14,10 @@ router = APIRouter(
 @router.post("/ask", response_model=ai_assistant_schemas.AIAssistantResponse)
 async def ask_assistant(request: ai_assistant_schemas.AIAssistantRequest):
     """
-    Sends a question and a note's context to the AI Assistant.
-
-    The assistant will answer the question based *only* on the provided
-    'note_context'.
-    """
-    return await ai_assistant_service.get_assistant_response(
-        question=request.question,
-        note_context=request.note_context,
-        history=request.history
-    )
-
-@router.post("/ask", response_model=ai_assistant_schemas.AIAssistantResponse)
-async def ask_assistant(request: ai_assistant_schemas.AIAssistantRequest): # Signature is the same, but the object it receives is new
-    """
     Sends a question, conversation history, and a note's context to the AI Assistant.
     """
     return await ai_assistant_service.get_assistant_response(
         question=request.question,
         note_context=request.note_context,
-        history=request.history # Pass the history to the service
+        history=request.history
     )
