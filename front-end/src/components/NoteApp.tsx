@@ -59,6 +59,41 @@ export function NoteApp() {
     ));
   };
 
+  const addNote = (title: string, parentId?: number) => {
+    const newId = Math.max(...notes.map(n => n.id)) + 1;
+    const newNote: Note = {
+      id: newId,
+      parent_id: parentId || null,
+      title,
+      text: `# ${title}\n\nStart writing your note here...`
+    };
+    setNotes(prev => [...prev, newNote]);
+    setSelectedNoteId(newId);
+  };
+
+  const deleteNote = (noteId: number) => {
+    // Get all descendant note IDs to delete them too
+    const getDescendantIds = (parentId: number): number[] => {
+      const children = notes.filter(note => note.parent_id === parentId);
+      const descendants = children.map(child => child.id);
+      children.forEach(child => {
+        descendants.push(...getDescendantIds(child.id));
+      });
+      return descendants;
+    };
+
+    const idsToDelete = [noteId, ...getDescendantIds(noteId)];
+    setNotes(prev => prev.filter(note => !idsToDelete.includes(note.id)));
+    
+    // If the deleted note was selected, select the first available note
+    if (idsToDelete.includes(selectedNoteId)) {
+      const remainingNotes = notes.filter(note => !idsToDelete.includes(note.id));
+      if (remainingNotes.length > 0) {
+        setSelectedNoteId(remainingNotes[0].id);
+      }
+    }
+  };
+
   const buildNoteTree = () => {
     interface NoteWithChildren extends Note {
       children: NoteWithChildren[];
@@ -94,6 +129,8 @@ export function NoteApp() {
           notes={buildNoteTree()}
           selectedNoteId={selectedNoteId}
           onSelectNote={setSelectedNoteId}
+          onAddNote={addNote}
+          onDeleteNote={deleteNote}
           collapsed={leftPanelCollapsed}
         />
       </div>
