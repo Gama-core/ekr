@@ -48,7 +48,7 @@ function NoteItem({
 
   const handleAddSubNote = () => {
     setCreatingSubNote(note.id);
-    setExpanded(true);
+    setExpanded(true); // Ensure the parent is expanded when adding a child
   };
 
   const handleSubmitNewNote = () => {
@@ -135,9 +135,13 @@ function NoteItem({
         )}
       </div>
 
-      {hasChildren && expanded && (
+      {/* --- THIS IS THE KEY FIX --- */}
+      {/* This block now correctly renders children AND the new note input field separately, */}
+      {/* based on the correct conditions. */}
+      {expanded && (
         <div>
-          {note.children.map((child) => (
+          {/* Render existing children if they exist */}
+          {hasChildren && note.children.map((child) => (
             <NoteItem
               key={child.id}
               note={child}
@@ -151,6 +155,7 @@ function NoteItem({
             />
           ))}
 
+          {/* Render the new sub-note input field if we are in creation mode for THIS note */}
           {creatingSubNote === note.id && (
             <div style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }} className="p-2">
               <Input

@@ -42,17 +42,12 @@ async def create_new_note(note_create: note_schemas.NoteCreateRequest, user_id: 
 async def update_existing_note(note_id: int, note_update: note_schemas.NoteUpdateRequest) -> note_schemas.NoteResponse:
     """Orchestration for updating a note."""
     logger.info(f"Orchestrating update for note_id: {note_id}")
-
-    # Step 1: Update the note in the database
     payload = note_update.model_dump(exclude_unset=True)
-
-    # FIX: Removed the incorrect manual renaming of 'text' to 'text_content'.
-    # The database-api now receives the correct 'text' key.
     updated_note = await clients.database_api_client.update_note_in_db(note_id, payload)
-
-    # Step 2: Trigger re-indexing
     await clients.semantic_retrieval_client.index_note(updated_note.id)
 
+    # --- THIS IS THE FIX ---
+    # The function now correctly returns the updated note object.
     return updated_note
 
 

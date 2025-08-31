@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 async def index_note(note_id: int):
     """Tells the semantic-retrieval service to index a new or updated note."""
-    url = f"{settings.SEMANTIC_RETRIEVAL_API_URL}/index/note"
+    # FIX: Added the '/rag' prefix to match the router configuration in the semantic-retrieval service.
+    url = f"{settings.SEMANTIC_RETRIEVAL_API_URL}/rag/index/note"
     payload = {"note_id": note_id}
     try:
         async with httpx.AsyncClient() as client:
@@ -25,7 +26,8 @@ async def index_note(note_id: int):
 
 async def delete_note_from_index(note_id: int):
     """Tells the semantic-retrieval service to remove a note from its index."""
-    url = f"{settings.SEMANTIC_RETRIEVAL_API_URL}/index/note/{note_id}"
+    # FIX: Added the '/rag' prefix here as well.
+    url = f"{settings.SEMANTIC_RETRIEVAL_API_URL}/rag/index/note/{note_id}"
     try:
         async with httpx.AsyncClient() as client:
             response = await client.delete(url)
@@ -36,7 +38,7 @@ async def delete_note_from_index(note_id: int):
 
 async def retrieve_context(query: str, user_id: int) -> List[Dict[str, Any]]:
     """Calls the semantic-retrieval service to get relevant note chunks."""
-    # THE FIX IS HERE: The full path from the service's root is '/rag/retrieve'
+    # This URL is already correct as it was defined with the prefix in mind.
     url = f"{settings.SEMANTIC_RETRIEVAL_API_URL}/rag/retrieve"
     payload = {"query": query, "user_id": user_id}
     try:
@@ -53,5 +55,3 @@ async def retrieve_context(query: str, user_id: int) -> List[Dict[str, Any]]:
         logger.error(f"Could not connect to Semantic Retrieval Service at {url}: {e}")
         # Also return an empty list on connection errors.
         return []
-
-
