@@ -10,30 +10,43 @@ import { ChatSidebar } from "@/components/ChatSidebar";
 import { api, ChatMessage, Source } from "@/lib/api";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Paperclip, Globe, Bot, User, FileText, ChevronDown, ChevronUp, Sparkles, X } from "lucide-react";
+import { Send, Paperclip, Globe, Bot, User, FileText, ChevronDown, ChevronUp, Sparkles, X, Check } from "lucide-react";
 
-// Export this type for use in other components like the history hook
+// Export this type for the useChatHistory hook
 export interface Message extends ChatMessage {
   id: string;
   type: 'user' | 'assistant'; // Role is mapped to type
   sources?: Source[];
 }
 
-function ThinkingBubble() {
+interface ThinkingTask {
+    text: string;
+    completed: boolean;
+}
+
+function ThinkingBubble({ tasks }: { tasks: ThinkingTask[] }) {
     return (
         <div className="flex justify-start mb-4">
             <div className="flex items-start gap-3 max-w-[80%]">
                 <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
                     <Sparkles className="w-4 h-4 text-muted-foreground animate-pulse" />
                 </div>
-                <div className="bg-muted px-4 py-3 rounded-lg">
-                    <div className="flex items-center gap-2">
+                <div className="bg-muted px-4 py-3 rounded-lg w-full">
+                    <div className="flex items-center gap-2 mb-3">
                         <div className="flex gap-1">
                             <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse"></div>
                             <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse [animation-delay:0.2s]"></div>
                             <div className="w-2 h-2 bg-muted-foreground rounded-full animate-pulse [animation-delay:0.4s]"></div>
                         </div>
                         <span className="text-sm text-muted-foreground">AI is thinking...</span>
+                    </div>
+                    <div className="space-y-2">
+                        {tasks.map((task, index) => (
+                            <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
+                                {task.completed ? <Check className="w-4 h-4 text-green-500" /> : <Sparkles className="w-4 h-4 animate-pulse" />}
+                                <span>{task.text}</span>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
@@ -66,8 +79,9 @@ function MessageBubble({ message }: { message: Message }) {
           <Bot className="w-4 h-4 text-muted-foreground" />
         </div>
         <div className="bg-muted px-4 py-3 rounded-lg w-full">
-          <div className="prose prose-sm max-w-none text-foreground dark:text-white prose-p:m-0 prose-headings:m-0 prose-ul:m-0 prose-ol:m-0">
-            <div className="text-sm whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: message.content.replace(/\n/g, '<br />') }} />
+          <div className="prose prose-sm max-w-none text-foreground">
+            {/* Using a div instead of p for better markdown rendering compatibility */}
+            <div className="text-sm whitespace-pre-wrap">{message.content}</div>
           </div>
 
           {message.sources && message.sources.length > 0 && (
@@ -99,22 +113,22 @@ function MessageBubble({ message }: { message: Message }) {
   );
 }
 
-
 export default function Chatbot() {
   const { toast } = useToast();
-  const { sessions, activeSession, activeSessionId, setActiveSessionId, startNewSession, deleteSession, updateSessionMessages } = useChatHistory();
+  const { sessions, activeSession, activeSessionId, setActiveSessionId, startNewSession, updateSessionMessages } = useChatHistory();
 
   const [query, setQuery] = useState('');
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [thinkingTasks, setThinkingTasks] = useState<ThinkingTask[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
-        scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'auto' });
+        scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
     }
   }, [activeSession?.messages, isLoading]);
 
@@ -131,6 +145,15 @@ export default function Chatbot() {
     setAttachedFiles([]);
     setIsLoading(true);
 
+    const initialTasks = [{ text: "Analyzing your notes...", completed: false }];
+    if (filesToSend.length > 0) initialTasks.push({ text: `Reading ${filesToSend.length} file(s)...`, completed: false });
+    if (webSearchEnabled) {
+      initialTasks.push({ text: "Rewriting query for web...", completed: false });
+      initialTasks.push({ text: "Searching the web...", completed: false });
+    }
+    initialTasks.push({ text: "Synthesizing answer...", completed: false });
+    setThinkingTasks(initialTasks);
+
     try {
       const history = currentMessages.slice(0, -1).map(({ role, content }) => ({ role, content }));
       const response = await api.handleChatRequest(queryToSend, history, webSearchEnabled, filesToSend);
@@ -143,12 +166,15 @@ export default function Chatbot() {
         sources: response.sources
       };
 
+      setThinkingTasks(tasks => tasks.map(t => ({ ...t, completed: true })));
       updateSessionMessages(activeSessionId, [...currentMessages, aiMessage]);
+
     } catch (error) {
       toast({ title: "API Error", description: String(error), variant: "destructive" });
-      updateSessionMessages(activeSessionId, activeSession?.messages || []); // Revert optimistic update
+      updateSessionMessages(activeSessionId, activeSession?.messages || []);
     } finally {
       setIsLoading(false);
+      setThinkingTasks([]);
     }
   };
 
@@ -163,9 +189,6 @@ export default function Chatbot() {
     if (event.target.files) {
       setAttachedFiles(prev => [...prev, ...Array.from(event.target.files!)]);
     }
-     if (fileInputRef.current) {
-      fileInputRef.current.value = ""; // Allow re-uploading the same file
-    }
   };
 
   return (
@@ -176,11 +199,10 @@ export default function Chatbot() {
           onSelectSession={setActiveSessionId}
           selectedSessionId={activeSessionId || ''}
           onNewChat={startNewSession}
-          onDeleteSession={deleteSession}
         />
 
         <main className="flex-1 flex flex-col">
-          <header className="border-b bg-background px-6 py-4 flex items-center gap-2 z-10">
+          <header className="border-b bg-background px-6 py-4 flex items-center gap-2">
             <SidebarTrigger />
             <h1 className="text-xl font-semibold text-foreground">{activeSession?.title || 'Chat'}</h1>
           </header>
@@ -189,7 +211,7 @@ export default function Chatbot() {
             <ScrollArea className="h-full" viewportRef={scrollAreaRef}>
               <div className="max-w-4xl mx-auto px-6 py-6">
                 {activeSession?.messages.map((message) => <MessageBubble key={message.id} message={message} />)}
-                {isLoading && <ThinkingBubble />}
+                {isLoading && <ThinkingBubble tasks={thinkingTasks} />}
               </div>
             </ScrollArea>
           </div>
@@ -199,10 +221,9 @@ export default function Chatbot() {
                {attachedFiles.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {attachedFiles.map((file, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-muted px-2 py-1 rounded-md text-sm text-foreground">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span>{file.name}</span>
-                      <button onClick={() => setAttachedFiles(files => files.filter(f => f.name !== file.name))} className="text-muted-foreground hover:text-foreground">
+                    <div key={i} className="flex items-center gap-2 bg-muted px-2 py-1 rounded-md text-sm">
+                      <FileText className="h-4 w-4" /> {file.name}
+                      <button onClick={() => setAttachedFiles(files => files.filter((_, index) => index !== i))}>
                         <X className="h-3 w-3" />
                       </button>
                     </div>
@@ -211,7 +232,7 @@ export default function Chatbot() {
               )}
               <div className="flex items-center gap-2">
                 <Globe className="w-4 h-4 text-muted-foreground" />
-                <label htmlFor="web-search" className="text-sm font-medium text-foreground">Web Search</label>
+                <label htmlFor="web-search" className="text-sm font-medium">Web Search</label>
                 <Switch id="web-search" checked={webSearchEnabled} onCheckedChange={setWebSearchEnabled} />
               </div>
 
@@ -228,6 +249,7 @@ export default function Chatbot() {
                   placeholder="Ask a question..."
                   className="min-h-[44px] max-h-32 resize-none"
                   rows={1}
+                  disabled={isLoading}
                 />
                 <Button onClick={handleSend} disabled={isLoading || !query.trim()} size="icon">
                   <Send className="w-4 h-4" />
