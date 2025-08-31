@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -11,10 +13,9 @@ import { useChatHistory } from "@/hooks/useChatHistory";
 import { useToast } from "@/hooks/use-toast";
 import { Send, Paperclip, Globe, Bot, User, FileText, ChevronDown, ChevronUp, Sparkles, X, Check } from "lucide-react";
 
-// Export this type for the useChatHistory hook
 export interface Message extends ChatMessage {
   id: string;
-  type: 'user' | 'assistant'; // Role is mapped to type
+  type: 'user' | 'assistant';
   sources?: Source[];
 }
 
@@ -26,7 +27,7 @@ interface ThinkingTask {
 function ThinkingBubble({ tasks }: { tasks: ThinkingTask[] }) {
     return (
         <div className="flex justify-start mb-4">
-            <div className="flex items-start gap-3 max-w-[80%]">
+            <div className="flex items-start gap-3 max-w-[80%] w-full">
                 <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
                     <Sparkles className="w-4 h-4 text-muted-foreground animate-pulse" />
                 </div>
@@ -73,14 +74,16 @@ function MessageBubble({ message }: { message: Message }) {
 
   return (
     <div className="flex justify-start mb-4">
-      <div className="flex items-start gap-3 max-w-[80%]">
+      <div className="flex items-start gap-3 max-w-[80%] w-full">
         <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
           <Bot className="w-4 h-4 text-muted-foreground" />
         </div>
         <div className="bg-muted px-4 py-3 rounded-lg w-full">
-          <div className="prose prose-sm max-w-none text-foreground">
-            <div className="text-sm whitespace-pre-wrap">{message.content}</div>
-          </div>
+          <article className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {message.content}
+            </ReactMarkdown>
+          </article>
 
           {message.sources && message.sources.length > 0 && (
             <div className="mt-4 pt-3 border-t border-border">
@@ -111,6 +114,7 @@ function MessageBubble({ message }: { message: Message }) {
   );
 }
 
+// ... the rest of the Chatbot component remains the same as the previous step ...
 export default function Chatbot() {
   const { toast } = useToast();
   const { sessions, activeSession, activeSessionId, setActiveSessionId, startNewSession, updateSessionMessages, deleteSession } = useChatHistory();
@@ -237,7 +241,7 @@ export default function Chatbot() {
 
               <div className="flex items-end gap-2">
                 <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
-                  <Paperclip className="w-4 w-4" />
+                  <Paperclip className="w-4 h-4" />
                 </Button>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple className="hidden" />
 
@@ -251,7 +255,7 @@ export default function Chatbot() {
                   disabled={isLoading}
                 />
                 <Button onClick={handleSend} disabled={isLoading || !query.trim()} size="icon">
-                  <Send className="w-4 w-4" />
+                  <Send className="w-4 h-4" />
                 </Button>
               </div>
             </div>
