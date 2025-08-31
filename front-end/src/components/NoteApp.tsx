@@ -1,108 +1,124 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileExplorer } from "./FileExplorer";
 import { NoteEditor } from "./NoteEditor";
 import { AIAssistant } from "./AIAssistant";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
-
-interface Note {
-  id: number;
-  parent_id: number | null;
-  title: string;
-  text: string;
-}
-
-const mockNotes: Note[] = [
-  {
-    id: 1,
-    parent_id: null,
-    title: "Product Strategy",
-    text: "# Product Strategy\n\nThis document outlines our comprehensive product strategy for the upcoming quarter. We'll focus on user experience improvements and market expansion.\n\n## Key Objectives\n\n- Improve user retention by 25%\n- Expand to 3 new markets\n- Launch AI-powered features\n\n## Market Analysis\n\nThe current market shows strong demand for AI-enhanced productivity tools...",
-  },
-  {
-    id: 2,
-    parent_id: 1,
-    title: "User Research Findings",
-    text: "# User Research Findings\n\nBased on our recent user interviews and surveys, we've identified several key insights:\n\n## Pain Points\n\n- Users struggle with information overload\n- Current search functionality is inadequate\n- Mobile experience needs improvement\n\n## Opportunities\n\n- AI-assisted content organization\n- Smart notifications\n- Enhanced collaboration features",
-  },
-  {
-    id: 3,
-    parent_id: 1,
-    title: "Competitive Analysis",
-    text: "# Competitive Analysis\n\nAnalysis of top competitors in the productivity space:\n\n## Notion\n- Strengths: Flexible workspace, good collaboration\n- Weaknesses: Steep learning curve, performance issues\n\n## Obsidian\n- Strengths: Powerful linking, local storage\n- Weaknesses: Complex for casual users",
-  },
-  {
-    id: 4,
-    parent_id: null,
-    title: "Meeting Notes",
-    text: "# Weekly Team Meeting\n\n**Date:** March 15, 2024\n**Attendees:** Sarah, Mike, Alex, Emma\n\n## Agenda Items\n\n1. Sprint Review\n2. Q1 Goals Discussion\n3. New Feature Proposals\n\n## Action Items\n\n- [ ] Sarah: Update user stories\n- [ ] Mike: Review technical specifications\n- [ ] Alex: Prepare design mockups",
-  },
-  {
-    id: 5,
-    parent_id: 4,
-    title: "Sprint Retrospective",
-    text: "# Sprint Retrospective\n\n## What went well?\n\n- Team collaboration improved\n- Delivered features on time\n- Good code review process\n\n## What could be improved?\n\n- Better estimation accuracy\n- More frequent stakeholder updates\n- Automated testing coverage",
-  },
-];
+import { api, Note } from "@/lib/api"; // Import the new api utility and Note type
+import { useToast } from "@/hooks/use-toast"; // For showing notifications
 
 export function NoteApp() {
-  const [selectedNoteId, setSelectedNoteId] = useState<number>(1);
-  const [notes, setNotes] = useState<Note[]>(mockNotes);
+  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  const fetchNotes = async () => {
+    try {
+      setIsLoading(true);
+      const fetchedNotes = await api.getNotes();
+      setNotes(fetchedNotes);
+      if (fetchedNotes.length > 0 && selectedNoteId === null) {
+        setSelectedNoteId(fetchedNotes[0].id);
+      }
+    } catch (error) {
+      console.error("Failed to fetch notes:", error);
+      toast({
+        title: "Error",
+        description: "Could not fetch your notes. Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotes();
+  }, []);
 
   const selectedNote = notes.find(note => note.id === selectedNoteId);
 
-  const updateNote = (noteId: number, updates: Partial<Note>) => {
-    setNotes(prev => prev.map(note => 
-      note.id === noteId ? { ...note, ...updates } : note
-    ));
+  const updateNote = async (noteId: number, updates: Partial<Note>) => {
+    try {
+      const updatedNote = await api.updateNote(noteId, updates);
+      setNotes(prev => prev.map(note =>
+        note.id === noteId ? updatedNote : note
+      ));
+    } catch (error) {
+      console.error(`Failed to update note ${noteId}:`, error);
+      toast({
+        title: "Error",
+        description: "Failed to save changes.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const addNote = (title: string, parentId?: number) => {
-    const newId = Math.max(...notes.map(n => n.id)) + 1;
-    const newNote: Note = {
-      id: newId,
-      parent_id: parentId || null,
-      title,
-      text: `# ${title}\n\nStart writing your note here...`
-    };
-    setNotes(prev => [...prev, newNote]);
-    setSelectedNoteId(newId);
+  const addNote = async (title: string, parentId?: number) => {
+    try {
+        const newNoteData = { title, parent_id: parentId || null, text: `# ${title}\n\nStart writing your note here...` };
+        const newNote = await api.createNote(newNoteData);
+        setNotes(prev => [...prev, newNote]);
+        setSelectedNoteId(newNote.id);
+        toast({
+            title: "Success",
+            description: `Note "${title}" created.`,
+        });
+    } catch (error) {
+        console.error("Failed to create note:", error);
+        toast({
+            title: "Error",
+            description: "Could not create the note.",
+            variant: "destructive",
+        });
+    }
   };
 
-  const deleteNote = (noteId: number) => {
-    // Get all descendant note IDs to delete them too
+  const deleteNote = async (noteId: number) => {
     const getDescendantIds = (parentId: number): number[] => {
       const children = notes.filter(note => note.parent_id === parentId);
-      const descendants = children.map(child => child.id);
+      let descendants = children.map(child => child.id);
       children.forEach(child => {
-        descendants.push(...getDescendantIds(child.id));
+        descendants = [...descendants, ...getDescendantIds(child.id)];
       });
       return descendants;
     };
-
     const idsToDelete = [noteId, ...getDescendantIds(noteId)];
-    setNotes(prev => prev.filter(note => !idsToDelete.includes(note.id)));
-    
-    // If the deleted note was selected, select the first available note
-    if (idsToDelete.includes(selectedNoteId)) {
-      const remainingNotes = notes.filter(note => !idsToDelete.includes(note.id));
-      if (remainingNotes.length > 0) {
-        setSelectedNoteId(remainingNotes[0].id);
-      }
+
+    try {
+        await api.deleteNote(noteId);
+        const remainingNotes = notes.filter(note => !idsToDelete.includes(note.id));
+        setNotes(remainingNotes);
+
+        if (idsToDelete.includes(selectedNoteId!)) {
+            setSelectedNoteId(remainingNotes.length > 0 ? remainingNotes[0].id : null);
+        }
+        toast({
+            title: "Success",
+            description: "Note and its sub-notes deleted.",
+        });
+    } catch (error) {
+        console.error(`Failed to delete note ${noteId}:`, error);
+        toast({
+            title: "Error",
+            description: "Could not delete the note.",
+            variant: "destructive",
+        });
     }
   };
 
-  const buildNoteTree = () => {
+  const buildNoteTree = (notesToBuild: Note[]) => {
     interface NoteWithChildren extends Note {
       children: NoteWithChildren[];
     }
-    
-    const noteMap = new Map(notes.map(note => [note.id, { ...note, children: [] as NoteWithChildren[] }]));
+
+    const noteMap = new Map(notesToBuild.map(note => [note.id, { ...note, children: [] as NoteWithChildren[] }]));
     const rootNotes: NoteWithChildren[] = [];
-    
-    notes.forEach(note => {
+
+    notesToBuild.forEach(note => {
       const noteWithChildren = noteMap.get(note.id)!;
       if (note.parent_id === null) {
         rootNotes.push(noteWithChildren);
@@ -113,7 +129,7 @@ export function NoteApp() {
         }
       }
     });
-    
+
     return rootNotes;
   };
 
@@ -126,8 +142,8 @@ export function NoteApp() {
         ${leftPanelCollapsed ? 'overflow-hidden' : 'overflow-visible'}
       `}>
         <FileExplorer
-          notes={buildNoteTree()}
-          selectedNoteId={selectedNoteId}
+          notes={buildNoteTree(notes)}
+          selectedNoteId={selectedNoteId!}
           onSelectNote={setSelectedNoteId}
           onAddNote={addNote}
           onDeleteNote={deleteNote}
@@ -153,11 +169,15 @@ export function NoteApp() {
 
       {/* Center Panel - Note Editor */}
       <div className="flex-1 flex flex-col min-w-0 bg-panel-secondary">
-        {selectedNote && (
+        {isLoading && <div className="p-6">Loading notes...</div>}
+        {!isLoading && selectedNote ? (
           <NoteEditor
+            key={selectedNote.id}
             note={selectedNote}
             onUpdateNote={(updates) => updateNote(selectedNote.id, updates)}
           />
+        ) : (
+          !isLoading && <div className="p-6">Select a note to start editing or create a new one.</div>
         )}
       </div>
 

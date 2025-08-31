@@ -4,6 +4,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from fastapi.responses import StreamingResponse
+from typing import List # --- NEW: Import List ---
 
 # Use relative imports and add new schemas
 from . import service, schemas
@@ -27,6 +28,14 @@ async def get_note_endpoint(note_id: int, db: Session = Depends(get_db)):
     if not note_orm:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
     return note_orm
+
+# --- NEW ENDPOINT TO BE ADDED ---
+@router.get("/notes/by-user/{user_id}", response_model=List[schemas.Note], tags=["Notes Read-Only"])
+async def get_notes_by_user_endpoint(user_id: int, db: Session = Depends(get_db)):
+    """Retrieves all notes for a specific user as a single JSON list."""
+    return await service.get_notes_by_user(db, owner_id=user_id)
+# --- END OF NEW ENDPOINT ---
+
 
 # Endpoint to update a note
 @router.put("/notes/{note_id}", response_model=schemas.Note, tags=["Notes CRUD"])

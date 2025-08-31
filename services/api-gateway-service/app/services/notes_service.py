@@ -29,9 +29,8 @@ async def create_new_note(note_create: note_schemas.NoteCreateRequest, user_id: 
     payload = note_create.model_dump()
     payload['owner_id'] = user_id
 
-    if 'text' in payload:
-        payload['text_content'] = payload.pop('text')
-
+    # FIX: Removed the incorrect manual renaming of 'text' to 'text_content'.
+    # The database-api handles this with its Pydantic alias.
     created_note = await clients.database_api_client.create_note_in_db(payload)
 
     # Step 2: Trigger indexing in the semantic retrieval service
@@ -46,9 +45,9 @@ async def update_existing_note(note_id: int, note_update: note_schemas.NoteUpdat
 
     # Step 1: Update the note in the database
     payload = note_update.model_dump(exclude_unset=True)
-    if 'text' in payload:
-        payload['text_content'] = payload.pop('text')
 
+    # FIX: Removed the incorrect manual renaming of 'text' to 'text_content'.
+    # The database-api now receives the correct 'text' key.
     updated_note = await clients.database_api_client.update_note_in_db(note_id, payload)
 
     # Step 2: Trigger re-indexing
@@ -245,7 +244,3 @@ async def override_note_content(note_id: int, new_text: str):
     await clients.semantic_retrieval_client.index_note(updated_note.id)
 
     logger.info(f"Successfully overrode and re-indexed note_id: {note_id}")
-
-
-
-

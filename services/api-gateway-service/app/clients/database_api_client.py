@@ -11,22 +11,25 @@ from ..schemas.note_schemas import NoteResponse
 logger = logging.getLogger(__name__)
 
 async def get_notes_for_user(user_id: int) -> List[NoteResponse]:
-    """Fetches all notes for a user by streaming from the database-api."""
+    """Fetches all notes for a user from the database-api using a standard GET request."""
     notes = []
-    url = f"{settings.DATABASE_API_URL}/notes/stream/by-user/{user_id}"
+    # This endpoint assumes the database-api has a non-streaming endpoint to get all notes for a user.
+    url = f"{settings.DATABASE_API_URL}/notes/by-user/{user_id}"
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            async with client.stream("GET", url) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line:
-                        note_data = json.loads(line)
-                        if 'text_content' in note_data:
-                            note_data['text'] = note_data.pop('text_content')
-                        notes.append(NoteResponse.model_validate(note_data))
+            response = await client.get(url)
+            response.raise_for_status()
+            note_list = response.json()
+            for note_data in note_list:
+                if 'text_content' in note_data:
+                    note_data['text'] = note_data.pop('text_content')
+                notes.append(NoteResponse.model_validate(note_data))
     except httpx.HTTPStatusError as e:
         logger.error(f"Error fetching notes for user {user_id}: {e.response.text}")
         raise HTTPException(status_code=e.response.status_code, detail=f"Database API error: {e.response.text}")
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.error(f"Error decoding JSON response from database-api for user {user_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid response from database service.")
     return notes
 
 async def get_note_by_id_from_db(note_id: int) -> Optional[NoteResponse]:

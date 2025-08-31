@@ -12,6 +12,13 @@ from . import models, schemas
 
 logger = logging.getLogger(__name__)
 
+# --- NEW FUNCTION TO BE ADDED ---
+async def get_notes_by_user(db: Session, owner_id: int) -> List[models.Note]:
+    """Retrieve all notes for a single user from the database in one query."""
+    logger.info(f"Fetching all notes for owner_id {owner_id}.")
+    return db.query(models.Note).filter(models.Note.owner_id == owner_id).all()
+# --- END OF NEW FUNCTION ---
+
 # --- EXISTING: No changes needed for read operations ---
 async def get_note_by_id(db: Session, note_id: int) -> Optional[models.Note]:
     """Retrieve a single note by its ID from the database."""

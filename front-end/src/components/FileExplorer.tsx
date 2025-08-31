@@ -21,18 +21,18 @@ interface FileExplorerProps {
   collapsed: boolean;
 }
 
-function NoteItem({ 
-  note, 
-  selectedNoteId, 
+function NoteItem({
+  note,
+  selectedNoteId,
   onSelectNote,
   onAddNote,
   onDeleteNote,
   level = 0,
   creatingSubNote,
-  setCreatingSubNote 
-}: { 
-  note: NoteWithChildren; 
-  selectedNoteId: number; 
+  setCreatingSubNote
+}: {
+  note: NoteWithChildren;
+  selectedNoteId: number;
   onSelectNote: (noteId: number) => void;
   onAddNote: (title: string, parentId?: number) => void;
   onDeleteNote: (noteId: number) => void;
@@ -69,70 +69,72 @@ function NoteItem({
       <div
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className="relative group"
+        className={`
+          group relative flex items-center w-full min-h-[36px] rounded-sm pr-2
+          hover:bg-hover transition-colors duration-fast
+          ${isSelected ? 'bg-active' : ''}
+        `}
+        style={{ paddingLeft: `${level * 16 + 8}px` }}
       >
-        <Button
-          variant="ghost"
-          onClick={() => onSelectNote(note.id)}
-          className={`
-            w-full justify-start text-left p-2 h-auto min-h-[36px] rounded-sm
-            hover:bg-hover transition-colors duration-fast
-            ${isSelected ? 'bg-active text-primary font-medium' : 'text-foreground'}
-          `}
-          style={{ paddingLeft: `${level * 16 + 8}px` }}
+        {/* Expander Button */}
+        <div className="flex items-center">
+          {hasChildren ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(!expanded);
+              }}
+              className="h-6 w-6 p-0 hover:bg-secondary-hover"
+            >
+              {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            </Button>
+          ) : (
+            <div className="w-6" /> // Placeholder to maintain alignment
+          )}
+        </div>
+
+        {/* Note Title (Clickable Area) */}
+        <div
+            className="flex items-center gap-2 flex-1 min-w-0 h-full cursor-pointer"
+            onClick={() => onSelectNote(note.id)}
         >
-          <div className="flex items-center gap-2 w-full min-w-0">
-            {hasChildren && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setExpanded(!expanded);
-                }}
-                className="p-0.5 hover:bg-secondary-hover rounded transition-colors duration-fast"
-              >
-                {expanded ? (
-                  <ChevronDown className="h-3 w-3" />
-                ) : (
-                  <ChevronRight className="h-3 w-3" />
-                )}
-              </button>
-            )}
-            {!hasChildren && <div className="w-4" />}
-            
             <FileText className="h-4 w-4 flex-shrink-0 text-subtle-foreground" />
-            <span className="truncate text-sm flex-1">{note.title}</span>
-            
-            {/* Hover Actions */}
-            {hovered && (
-              <div className="flex gap-1 ml-auto">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAddSubNote();
-                  }}
-                  className="h-6 w-6 p-0 hover:bg-secondary-hover"
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteNote(note.id);
-                  }}
-                  className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
+            <span className={`truncate text-sm ${isSelected ? 'text-primary font-medium' : 'text-foreground'}`}>
+                {note.title}
+            </span>
+        </div>
+
+        {/* Hover Actions */}
+        {hovered && (
+          <div className="flex gap-1 ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddSubNote();
+              }}
+              className="h-6 w-6 p-0 hover:bg-secondary-hover"
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteNote(note.id);
+              }}
+              className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
           </div>
-        </Button>
+        )}
       </div>
-      
+
       {hasChildren && expanded && (
         <div>
           {note.children.map((child) => (
@@ -148,8 +150,7 @@ function NoteItem({
               setCreatingSubNote={setCreatingSubNote}
             />
           ))}
-          
-          {/* Inline Sub-note Creation */}
+
           {creatingSubNote === note.id && (
             <div style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }} className="p-2">
               <Input
@@ -159,11 +160,8 @@ function NoteItem({
                 className="h-8 text-sm"
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleSubmitNewNote();
-                  } else if (e.key === 'Escape') {
-                    handleCancelNewNote();
-                  }
+                  if (e.key === 'Enter') handleSubmitNewNote();
+                  else if (e.key === 'Escape') handleCancelNewNote();
                 }}
                 onBlur={handleCancelNewNote}
               />

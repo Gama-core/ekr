@@ -4,8 +4,6 @@ import logging
 import uvicorn
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-
-# ADD THIS IMPORT
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import ai_assistant_router
 from app.routers import notes_router
@@ -28,19 +26,21 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# --- THIS IS THE CRUCIAL PART THAT FIXES THE ERROR ---
-# This list defines which frontend URLs are allowed to make requests.
+# --- CORRECTED AND FINAL CORS MIDDLEWARE CONFIGURATION ---
 origins = [
-    "http://localhost:5173",  # The address of your React development server
+    "http://localhost:8080",  # Your Vite dev server
+    "http://127.0.0.1:8080",
+    "http://localhost:5173",  # Default Vite dev server
     "http://127.0.0.1:5173",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Allows specific origins
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (GET, POST, PUT, DELETE, etc.)
-    allow_headers=["*"],  # Allows all headers
+    # Explicitly allow all methods your frontend will use
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
 )
 # --- END OF THE FIX ---
 
