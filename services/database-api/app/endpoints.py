@@ -1,10 +1,10 @@
 # services/database-api/app/endpoints.py
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from fastapi.responses import StreamingResponse
-from typing import List # --- NEW: Import List ---
+from typing import List
 
 # Use relative imports and add new schemas
 from . import service, schemas
@@ -47,13 +47,13 @@ async def update_note_endpoint(note_id: int, note_update: schemas.NoteUpdate, db
     return updated_note
 
 # Endpoint to delete a note
-@router.delete("/notes/{note_id}", response_model=schemas.Note, tags=["Notes CRUD"])
+@router.delete("/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Notes CRUD"])
 async def delete_note_endpoint(note_id: int, db: Session = Depends(get_db)):
-    """Deletes a note from the database."""
+    """Deletes a note and all its descendants from the database."""
     deleted_note = await service.delete_note(db, note_id)
     if not deleted_note:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
-    return deleted_note
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # --- CORRECTED STREAMING ENDPOINTS START HERE ---
