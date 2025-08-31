@@ -1,3 +1,4 @@
+// src/components/NoteApp.tsx
 import { useState, useEffect } from "react";
 import { FileExplorer } from "./FileExplorer";
 import { NoteEditor } from "./NoteEditor";
@@ -17,7 +18,6 @@ import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "
 import { api, Note } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
-// NEW: Define the NoteWithChildren interface here for clarity
 interface NoteWithChildren extends Note {
   children: NoteWithChildren[];
 }
@@ -57,7 +57,6 @@ export function NoteApp() {
 
   const selectedNote = notes.find(note => note.id === selectedNoteId);
 
-  // --- THIS IS THE FIX: The function implementation is restored ---
   const buildNoteTree = (notesToBuild: Note[]): NoteWithChildren[] => {
     const noteMap = new Map(notesToBuild.map(note => [note.id, { ...note, children: [] as NoteWithChildren[] }]));
     const rootNotes: NoteWithChildren[] = [];
@@ -94,23 +93,23 @@ export function NoteApp() {
   };
 
   const addNote = async (title: string, parentId?: number) => {
-    try {
-        const newNoteData = { title, parent_id: parentId || null, text: `# ${title}\n\nStart writing your note here...` };
-        const newNote = await api.createNote(newNoteData);
-        setNotes(prev => [...prev, newNote]);
-        setSelectedNoteId(newNote.id);
-        toast({
-            title: "Success",
-            description: `Note "${title}" created.`,
-        });
-    } catch (error) {
-        console.error("Failed to create note:", error);
-        toast({
-            title: "Error",
-            description: "Could not create the note.",
-            variant: "destructive",
-        });
-    }
+      try {
+          const newNoteData = { title, parent_id: parentId || null, text: `# ${title}\n\nStart writing your note here...` };
+          const newNote = await api.createNote(newNoteData as any);
+          setNotes(prev => [...prev, newNote]);
+          setSelectedNoteId(newNote.id);
+          toast({
+              title: "Success",
+              description: `Note "${title}" created.`,
+          });
+      } catch (error) {
+          console.error("Failed to create note:", error);
+          toast({
+              title: "Error",
+              description: "Could not create the note.",
+              variant: "destructive",
+          });
+      }
   };
 
   const requestDeleteNote = (noteId: number) => {
@@ -138,7 +137,7 @@ export function NoteApp() {
         const remainingNotes = notes.filter(note => !idsToDelete.includes(note.id));
         setNotes(remainingNotes);
 
-        if (idsToDelete.includes(selectedNoteId!)) {
+        if (selectedNoteId !== null && idsToDelete.includes(selectedNoteId)) {
             setSelectedNoteId(remainingNotes.length > 0 ? remainingNotes[0].id : null);
         }
         toast({
@@ -193,6 +192,7 @@ export function NoteApp() {
               key={selectedNote.id}
               note={selectedNote}
               onUpdateNote={(updates) => updateNote(selectedNote.id, updates)}
+              onNoteOverride={fetchNotes}
             />
           ) : (
             !isLoading && <div className="p-6">Select a note to start editing or create a new one.</div>

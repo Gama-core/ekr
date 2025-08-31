@@ -1,13 +1,15 @@
+// src/components/AIBlock.tsx
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, Copy, Check, X, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { Correction } from "@/lib/api";
 
 interface AIBlockProps {
   type: 'summary' | 'fact-check' | 'update';
   content: any;
-  onApplyCorrections?: () => void;
-  onSaveUpdate?: () => void;
+  onApplyCorrections?: (corrections: Correction[]) => void;
+  onSaveUpdate?: (updatedText: string) => void;
   onDiscard: () => void;
 }
 
@@ -64,7 +66,7 @@ export function AIBlock({ type, content, onApplyCorrections, onSaveUpdate, onDis
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-3">
-          {content.corrections.map((correction: any, index: number) => (
+          {content.corrections.map((correction: Correction, index: number) => (
             <div key={index} className="p-3 bg-background rounded-md border border-panel-border">
               <div className="space-y-2">
                 <div>
@@ -81,7 +83,7 @@ export function AIBlock({ type, content, onApplyCorrections, onSaveUpdate, onDis
         </div>
         <div className="flex justify-between items-center pt-2">
           <Button
-            onClick={onApplyCorrections}
+            onClick={() => onApplyCorrections?.(content.corrections)}
             className="gap-2 bg-ai-primary hover:bg-ai-primary/90"
           >
             <Check className="h-4 w-4" />
@@ -112,27 +114,14 @@ export function AIBlock({ type, content, onApplyCorrections, onSaveUpdate, onDis
       <CardContent className="space-y-4">
         <div className="max-h-96 overflow-y-auto">
           <div className="p-4 bg-background rounded-md border border-panel-border">
-            <pre className="whitespace-pre-wrap text-sm leading-relaxed font-mono">
+            <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">
               {content.updated_text}
             </pre>
           </div>
         </div>
-        {content.changes && (
-          <div className="p-3 bg-background rounded-md border border-panel-border">
-            <span className="text-xs font-medium text-ai-primary">Changes Made:</span>
-            <ul className="text-sm mt-1 space-y-1">
-              {content.changes.map((change: string, index: number) => (
-                <li key={index} className="flex items-start gap-2">
-                  <Check className="h-3 w-3 text-success mt-0.5 flex-shrink-0" />
-                  {change}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
         <div className="flex justify-between items-center pt-2">
           <Button
-            onClick={onSaveUpdate}
+            onClick={() => onSaveUpdate?.(content.updated_text)}
             className="gap-2 bg-ai-primary hover:bg-ai-primary/90"
           >
             <RefreshCw className="h-4 w-4" />
