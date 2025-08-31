@@ -1,4 +1,3 @@
-// src/pages/Chatbot.tsx
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,7 +79,6 @@ function MessageBubble({ message }: { message: Message }) {
         </div>
         <div className="bg-muted px-4 py-3 rounded-lg w-full">
           <div className="prose prose-sm max-w-none text-foreground">
-            {/* Using a div instead of p for better markdown rendering compatibility */}
             <div className="text-sm whitespace-pre-wrap">{message.content}</div>
           </div>
 
@@ -115,7 +113,7 @@ function MessageBubble({ message }: { message: Message }) {
 
 export default function Chatbot() {
   const { toast } = useToast();
-  const { sessions, activeSession, activeSessionId, setActiveSessionId, startNewSession, updateSessionMessages } = useChatHistory();
+  const { sessions, activeSession, activeSessionId, setActiveSessionId, startNewSession, updateSessionMessages, deleteSession } = useChatHistory();
 
   const [query, setQuery] = useState('');
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
@@ -124,11 +122,11 @@ export default function Chatbot() {
   const [thinkingTasks, setThinkingTasks] = useState<ThinkingTask[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-        scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+    if (scrollViewportRef.current) {
+        scrollViewportRef.current.scrollTo({ top: scrollViewportRef.current.scrollHeight, behavior: 'smooth' });
     }
   }, [activeSession?.messages, isLoading]);
 
@@ -199,6 +197,7 @@ export default function Chatbot() {
           onSelectSession={setActiveSessionId}
           selectedSessionId={activeSessionId || ''}
           onNewChat={startNewSession}
+          onDeleteSession={deleteSession}
         />
 
         <main className="flex-1 flex flex-col">
@@ -208,7 +207,7 @@ export default function Chatbot() {
           </header>
 
           <div className="flex-1 overflow-hidden">
-            <ScrollArea className="h-full" viewportRef={scrollAreaRef}>
+            <ScrollArea className="h-full" viewportRef={scrollViewportRef}>
               <div className="max-w-4xl mx-auto px-6 py-6">
                 {activeSession?.messages.map((message) => <MessageBubble key={message.id} message={message} />)}
                 {isLoading && <ThinkingBubble tasks={thinkingTasks} />}
@@ -238,7 +237,7 @@ export default function Chatbot() {
 
               <div className="flex items-end gap-2">
                 <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
-                  <Paperclip className="w-4 h-4" />
+                  <Paperclip className="w-4 w-4" />
                 </Button>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple className="hidden" />
 
@@ -252,7 +251,7 @@ export default function Chatbot() {
                   disabled={isLoading}
                 />
                 <Button onClick={handleSend} disabled={isLoading || !query.trim()} size="icon">
-                  <Send className="w-4 h-4" />
+                  <Send className="w-4 w-4" />
                 </Button>
               </div>
             </div>

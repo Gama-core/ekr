@@ -1,6 +1,7 @@
-import { useState } from "react";
+// src/components/ChatSidebar.tsx
+
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, MoreVertical, Edit2, Trash2, Plus } from "lucide-react";
+import { MessageCircle, Plus, MoreVertical, Edit2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
@@ -22,30 +23,25 @@ interface ChatSidebarProps {
   onSelectSession: (id: string) => void;
   selectedSessionId: string;
   onNewChat: () => void;
-  onDeleteSession: (id: string) => void;
+  onDeleteSession: (id: string) => void; // Add this required prop
 }
 
-function ChatSessionItem({ session, onSelect, isSelected, onDelete }: { session: ChatSession; onSelect: () => void; isSelected: boolean; onDelete: () => void; }) {
-  const [isHovered, setIsHovered] = useState(false);
-
+function ChatSessionItem({ session, onSelect, isSelected, onDelete }: { session: ChatSession; onSelect: () => void; isSelected: boolean; onDelete: (id: string) => void; }) {
   const handleDelete = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onDelete();
+    e.stopPropagation(); // Prevent the session from being selected when deleting
+    onDelete(session.id);
   };
 
   return (
     <SidebarMenuItem>
       <div
-        className={`group relative w-full rounded-sm transition-colors duration-fast cursor-pointer ${isSelected ? 'bg-accent' : 'hover:bg-muted'}`}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        className={`group relative w-full rounded-md transition-colors duration-fast cursor-pointer ${isSelected ? 'bg-accent' : 'hover:bg-muted'}`}
         onClick={onSelect}
       >
-        <SidebarMenuButton asChild className="h-auto p-0">
-          <div className="w-full p-3">
-            <div className="flex items-start gap-3 w-full min-w-0 pr-8">
-              <MessageCircle className="h-4 w-4 flex-shrink-0 text-muted-foreground mt-1" />
+        <SidebarMenuButton asChild className="h-auto p-0 bg-transparent hover:bg-transparent">
+          <div className="w-full p-2">
+            <div className="flex items-center gap-3 w-full min-w-0">
+              <MessageCircle className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-medium truncate ${isSelected ? 'text-accent-foreground' : 'text-foreground'}`}>
                   {session.title}
@@ -54,29 +50,21 @@ function ChatSessionItem({ session, onSelect, isSelected, onDelete }: { session:
             </div>
           </div>
         </SidebarMenuButton>
-
-        {(isHovered || isSelected) && (
-          <div className="absolute top-2 right-2">
+         <div className="absolute top-1/2 -translate-y-1/2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 hover:bg-secondary"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MoreVertical className="h-3 w-3" />
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => e.stopPropagation()}>
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="right" className="w-40 bg-background border shadow-lg z-50">
-                <DropdownMenuItem onClick={handleDelete} className="cursor-pointer text-destructive focus:text-destructive">
-                  <Trash2 className="h-3 w-3 mr-2" />
-                  Delete
+              <DropdownMenuContent side="right">
+                <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  <span>Delete</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-        )}
+         </div>
       </div>
     </SidebarMenuItem>
   );
@@ -113,7 +101,7 @@ export function ChatSidebar({ sessions, onSelectSession, selectedSessionId, onNe
                   session={session}
                   onSelect={() => onSelectSession(session.id)}
                   isSelected={selectedSessionId === session.id}
-                  onDelete={() => onDeleteSession(session.id)}
+                  onDelete={onDeleteSession} // Pass the delete handler down
                 />
               ))}
             </SidebarMenu>
