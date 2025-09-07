@@ -4,71 +4,71 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Strict Black & White Note-Taking App Design System */
+/* "Focused Calm" - Modern & Trustworthy Design System */
 
 @layer base {
   :root {
-    /* Core App Colors - Pure Black & White */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 0%;
+    /* Core App Colors - Light Mode */
+    --background: 210 20% 98%; /* Soft Off-White */
+    --foreground: 215 25% 20%; /* Dark Charcoal */
 
     /* Panel Backgrounds */
-    --panel-primary: 0 0% 98%;
-    --panel-secondary: 0 0% 100%;
-    --panel-border: 0 0% 90%;
+    --panel-primary: 210 20% 96%; /* Light Gray */
+    --panel-secondary: 0 0% 100%;     /* Pure White */
+    --panel-border: 210 20% 88%;  /* Soft Gray Border */
 
-    /* Interactive Elements - Black Primary */
-    --primary: 0 0% 0%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 0 0% 20%;
+    /* Interactive Elements - Muted Blue Primary */
+    --primary: 215 50% 55%; /* Muted Slate Blue */
+    --primary-foreground: 210 20% 98%;
+    --primary-hover: 215 50% 65%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 0%;
-    --secondary-hover: 0 0% 92%;
+    --secondary: 210 20% 94%;
+    --secondary-foreground: 215 25% 25%;
+    --secondary-hover: 210 20% 90%;
 
-    /* AI Elements - Black with subtle grays */
-    --ai-primary: 0 0% 0%;
-    --ai-secondary: 0 0% 97%;
-    --ai-border: 0 0% 85%;
-    --ai-glow: 0 0% 0%;
+    /* AI Elements - Based on Primary Blue */
+    --ai-primary: 215 50% 55%;
+    --ai-secondary: 215 50% 97%;
+    --ai-border: 215 50% 90%;
+    --ai-glow: 215 50% 55%;
 
-    /* Status Colors - Minimal gray variations */
-    --success: 0 0% 0%;
+    /* Status Colors */
+    --success: 145 60% 45%; /* Muted Green */
     --success-foreground: 0 0% 100%;
-    --warning: 0 0% 40%;
-    --warning-foreground: 0 0% 100%;
-    --destructive: 0 0% 20%;
+    --warning: 25 95% 60%; /* Soft Orange */
+    --warning-foreground: 215 25% 20%;
+    --destructive: 0 70% 60%; /* Soft Red */
     --destructive-foreground: 0 0% 100%;
 
-    /* Text Hierarchy - Gray shades */
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
-    --subtle-foreground: 0 0% 60%;
+    /* Text Hierarchy */
+    --muted: 210 20% 94%;
+    --muted-foreground: 215 20% 45%;
+    --subtle-foreground: 215 20% 60%;
 
     /* Interactive States */
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 0 0% 0%;
-    --hover: 0 0% 96%;
-    --active: 0 0% 94%;
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 215 50% 55%;
+    --hover: 210 20% 95%;
+    --active: 210 20% 92%;
 
     /* Card colors */
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 0%;
+    --card-foreground: 215 25% 20%;
 
     /* Accent colors */
-    --accent: 0 0% 96%;
-    --accent-foreground: 0 0% 0%;
+    --accent: 210 20% 94%;
+    --accent-foreground: 215 25% 20%;
 
     /* Popover colors */
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 0%;
+    --popover-foreground: 215 25% 20%;
 
-    /* Elevation & Shadows - Subtle black shadows */
+    /* Elevation & Shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --shadow-ai: 0 8px 25px -8px rgb(0 0 0 / 0.15);
+    --shadow-ai: 0 8px 25px -8px hsl(var(--ai-primary) / 0.15);
 
     /* Layout */
     --radius: 0.5rem;
@@ -81,82 +81,82 @@
     --transition-smooth: 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
     /* Sidebar specific */
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 0 0% 0%;
-    --sidebar-primary: 0 0% 0%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 94%;
-    --sidebar-accent-foreground: 0 0% 0%;
-    --sidebar-border: 0 0% 90%;
-    --sidebar-ring: 0 0% 0%;
+    --sidebar-background: 210 20% 96%;
+    --sidebar-foreground: 215 25% 20%;
+    --sidebar-primary: 215 50% 55%;
+    --sidebar-primary-foreground: 210 20% 98%;
+    --sidebar-accent: 210 20% 90%;
+    --sidebar-accent-foreground: 215 25% 20%;
+    --sidebar-border: 210 20% 85%;
+    --sidebar-ring: 215 50% 55%;
   }
 
   .dark {
-    /* Core App Colors - Pure Black & White (Dark Mode) */
-    --background: 0 0% 7%;
-    --foreground: 0 0% 100%;
+    /* Core App Colors - Dark Mode */
+    --background: 220 20% 12%; /* Dark Slate */
+    --foreground: 210 20% 85%; /* Light Gray */
 
     /* Panel Backgrounds */
-    --panel-primary: 0 0% 10%;
-    --panel-secondary: 0 0% 12%;
-    --panel-border: 0 0% 20%;
+    --panel-primary: 220 20% 15%;
+    --panel-secondary: 220 20% 18%;
+    --panel-border: 220 20% 30%;
 
-    /* Interactive Elements - White Primary */
-    --primary: 0 0% 100%;
-    --primary-foreground: 0 0% 0%;
-    --primary-hover: 0 0% 80%;
+    /* Interactive Elements */
+    --primary: 215 60% 65%; /* Brighter Muted Blue */
+    --primary-foreground: 220 20% 12%;
+    --primary-hover: 215 60% 55%;
 
-    --secondary: 0 0% 20%;
-    --secondary-foreground: 0 0% 100%;
-    --secondary-hover: 0 0% 25%;
+    --secondary: 220 20% 25%;
+    --secondary-foreground: 210 20% 90%;
+    --secondary-hover: 220 20% 30%;
 
-    /* AI Elements - White with subtle grays */
-    --ai-primary: 0 0% 100%;
-    --ai-secondary: 0 0% 15%;
-    --ai-border: 0 0% 30%;
-    --ai-glow: 0 0% 100%;
+    /* AI Elements */
+    --ai-primary: 215 60% 65%;
+    --ai-secondary: 220 20% 22%;
+    --ai-border: 220 20% 35%;
+    --ai-glow: 215 60% 65%;
 
-    /* Status Colors - Minimal gray variations */
-    --success: 0 0% 100%;
+    /* Status Colors */
+    --success: 145 60% 55%;
     --success-foreground: 0 0% 0%;
-    --warning: 0 0% 70%;
-    --warning-foreground: 0 0% 0%;
-    --destructive: 0 0% 80%;
+    --warning: 25 95% 70%;
+    --warning-foreground: 220 20% 12%;
+    --destructive: 0 70% 70%;
     --destructive-foreground: 0 0% 0%;
 
-    /* Text Hierarchy - Gray shades */
-    --muted: 0 0% 20%;
-    --muted-foreground: 0 0% 65%;
-    --subtle-foreground: 0 0% 50%;
+    /* Text Hierarchy */
+    --muted: 220 20% 25%;
+    --muted-foreground: 215 20% 65%;
+    --subtle-foreground: 215 20% 50%;
 
     /* Interactive States */
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 0 0% 100%;
-    --hover: 0 0% 18%;
-    --active: 0 0% 22%;
+    --border: 220 20% 30%;
+    --input: 220 20% 30%;
+    --ring: 215 60% 65%;
+    --hover: 220 20% 24%;
+    --active: 220 20% 28%;
 
     /* Card colors */
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 100%;
+    --card: 220 20% 15%;
+    --card-foreground: 210 20% 85%;
 
     /* Accent colors */
-    --accent: 0 0% 20%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 220 20% 25%;
+    --accent-foreground: 210 20% 95%;
 
     /* Popover colors */
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 220 20% 15%;
+    --popover-foreground: 210 20% 85%;
 
     /* Sidebar specific */
-    --sidebar-background: 0 0% 10%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 0 0% 20%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 0 0% 100%;
+    --sidebar-background: 220 20% 15%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 215 60% 65%;
+    --sidebar-primary-foreground: 220 20% 12%;
+    --sidebar-accent: 220 20% 28%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 220 20% 30%;
+    --sidebar-ring: 215 60% 65%;
   }
 }
 
