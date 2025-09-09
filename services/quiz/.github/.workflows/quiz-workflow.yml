@@ -1,0 +1,46 @@
+# .github/workflows/quiz.yml
+
+name: Build, Deploy, and Restart quiz Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ekr/services/quiz/**'
+
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted,ci,build]
+
+    defaults:
+      run:
+        working-directory: /opt/aiservices/ekr/services/quiz
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          pytest
+
+      - name: Run Ansible Playbook for Deployment
+        run: |
+          ansible-playbook /etc/ansible/deploy-ai-services.yml \
+            -i /etc/ansible/hosts/inventory.ini \
+            --extra-vars "dedicated_node=my-node \
+                          service_name=quiz.service \
+                          app_folder=quiz"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
