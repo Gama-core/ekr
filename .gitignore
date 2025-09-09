@@ -49,7 +49,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
-
+services/semantic-retrieval/vector_store_data/
 # Environments
 #.env
 #.env.*
