@@ -76,19 +76,36 @@ export function NoteApp() {
     return rootNotes;
   };
 
+  // FIX: Replaced the updateNote function to include the note version in the payload.
   const updateNote = async (noteId: number, updates: Partial<Note>) => {
     try {
-      const updatedNote = await api.updateNote(noteId, updates);
+      const currentNote = notes.find(n => n.id === noteId);
+      if (!currentNote) {
+        throw new Error(`Note with id ${noteId} not found in current state.`);
+      }
+
+      // Create the payload including the current version for optimistic locking
+      const updatePayload = {
+        ...updates,
+        version: currentNote.version,
+      };
+
+      const updatedNote = await api.updateNote(noteId, updatePayload);
+
+      // Update the local state with the new note data from the server
       setNotes(prev => prev.map(note =>
-        note.id === noteId ? { ...note, ...updatedNote } : note
+        note.id === noteId ? updatedNote : note
       ));
+
     } catch (error) {
       console.error(`Failed to update note ${noteId}:`, error);
       toast({
-        title: "Error",
-        description: "Failed to save changes.",
+        title: "Error Saving Note",
+        description: String(error),
         variant: "destructive",
       });
+      // Optional: Refetch notes to sync with server state if an update fails
+      // fetchNotes();
     }
   };
 

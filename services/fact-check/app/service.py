@@ -53,10 +53,6 @@ def _construct_llm_prompt(text_content: str) -> tuple[str, str]:
     system_prompt = (
         "You are an expert fact-checking editor. Your task is to analyze the user's text, which is structured into blocks, "
         "identify statements that are factually inaccurate, and provide a suggested correction for each error.\n\n"
-        "The user's text is formatted into blocks like this:\n"
-        "--- NOTE START (ID: 123) ---\n"
-        "...\n"
-        "--- NOTE END (ID: 123) ---\n\n"
         "You MUST adhere to the following rules:\n"
         "1. Respond ONLY with a single, valid JSON object.\n"
         "2. Do not include any preamble, explanations, or text outside of the JSON structure.\n"
@@ -66,10 +62,8 @@ def _construct_llm_prompt(text_content: str) -> tuple[str, str]:
     )
 
     user_prompt = (
-        "Please analyze the following text blocks for factual inaccuracies and provide corrections according to the required JSON format.\n\n"
-        "--- TEXT TO ANALYZE ---\n"
+        "Please analyze the following text blocks for factual inaccuracies and provide corrections according to the required JSON format:\n\n"
         f"{text_content}\n"
-        "--- END OF TEXT ---"
     )
     return system_prompt, user_prompt
 
