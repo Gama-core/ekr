@@ -1,0 +1,106 @@
+---
+- name: Rollback EKR Service Deployment
+  hosts: all
+  become: yes
+  vars:
+    config_file: "../services-config.yml"
+    service_config: "{{ (lookup('file', config_file) | from_yaml).services[service_name] }}"
+    global_config: "{{ (lookup('file', config_file) | from_yaml).global }}"
+    deployment_config: "{{ (lookup('file', config_file) | from_yaml).deployment }}"
+    
+  tasks:
+    - name: Load service configuration
+      set_fact:
+        working_dir: "{{ global_config.working_directory }}"
+        backup_dir: "{{ global_config.backup_directory }}/{{ service_name }}"
+        service_user: "{{ global_config.user }}"
+        service_group: "{{ global_config.group }}"
+
+    - name: Check if rollback is enabled
+      fail:
+        msg: "Rollback is disabled in configuration"
+      when: not (deployment_config.rollback_on_failure | default(true))
+
+    - name: Find latest backup
+      find:
+        paths: "{{ backup_dir }}"
+        file_type: directory
+        patterns: "*"
+      register: backup_directories
+
+    - name: Fail if no backups found
+      fail:
+        msg: "No backup found for service {{ service_name }}"
+      when: backup_directories.files | length == 0
+
+    - name: Determine latest backup
+      set_fact:
+        latest_backup: "{{ backup_directories.files | sort(attribute='mtime') | last }}"
+
+    - name: Stop current service
+      systemd:
+        name: "ekr-{{ service_name }}"
+        state: stopped
+      register: service_stop
+      failed_when: false
+
+    - name: Display rollback information
+      debug:
+        msg: |
+          Rolling back service: {{ service_name }}
+          From backup: {{ latest_backup.path }}
+          Backup date: {{ latest_backup.mtime | to_datetime }}
+
+    - name: Remove current service files
+      file:
+        path: "{{ working_dir }}/{{ service_name }}"
+        state: absent
+
+    - name: Restore service files from backup
+      copy:
+        src: "{{ latest_backup.path }}/"
+        dest: "{{ working_dir }}/{{ service_name }}/"
+        remote_src: yes
+        owner: "{{ service_user }}"
+        group: "{{ service_group }}"
+        mode: preserve
+
+    - name: Start service after rollback
+      systemd:
+        name: "ekr-{{ service_name }}"
+        state: started
+        enabled: yes
+      register: service_start
+
+    - name: Wait for service to be ready
+      wait_for:
+        port: "{{ service_config.port }}"
+        host: "{{ ansible_default_ipv4.address }}"
+        timeout: "{{ global_config.startup_timeout | default(60) }}"
+
+    - name: Verify rollback success
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}:{{ service_config.port }}{{ service_config.health_endpoint | default('/health') }}"
+        method: GET
+        timeout: 30
+        status_code: 200
+      register: health_check
+      retries: 3
+      delay: 10
+
+    - name: Log rollback completion
+      lineinfile:
+        path: "{{ global_config.log_directory }}/rollback.log"
+        line: "{{ ansible_date_time.iso8601 }}: Successfully rolled back {{ service_name }} to {{ latest_backup.path | basename }}"
+        create: yes
+        owner: "{{ service_user }}"
+        group: "{{ service_group }}"
+
+    - name: Rollback summary
+      debug:
+        msg: |
+          🔄 Rollback completed successfully for {{ service_name }}
+          - Backup used: {{ latest_backup.path | basename }}
+          - Service status: {{ service_start.status.ActiveState }}
+          - Health check: ✅ Passed
+          - Rollback logged to: {{ global_config.log_directory }}/rollback.log

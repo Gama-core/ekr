@@ -1,0 +1,58 @@
+[Unit]
+Description={{ service_config.description | default(service_config.name) }}
+After=network.target{% if service_dependencies %} {{ service_dependencies | join(' ') }}{% endif %}
+
+Wants=network.target
+{% if service_dependencies %}
+{% for dep in service_dependencies %}
+Requires={{ dep }}
+{% endfor %}
+{% endif %}
+
+[Service]
+Type=simple
+User={{ service_user }}
+Group={{ service_group }}
+WorkingDirectory={{ working_dir }}/{{ service_name }}
+Environment=PATH={{ working_dir }}/{{ service_name }}/.local/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/etc/ekr/{{ service_name }}.env
+
+{% if service_config.service_type | default(global_config.service_type) == "python" %}
+ExecStart=/usr/bin/python3 -m uvicorn {{ service_main_file.replace('.py', '') }}:app --host 0.0.0.0 --port {{ service_port }} --workers 1
+{% else %}
+ExecStart={{ working_dir }}/{{ service_name }}/start.sh
+{% endif %}
+
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+TimeoutStartSec={{ global_config.startup_timeout | default(60) }}
+TimeoutStopSec=30
+RestartSec={{ global_config.restart_delay | default(5) }}
+Restart={{ global_config.restart_policy | default('on-failure') }}
+RestartPreventExitStatus=0
+
+# Resource limits
+{% if service_resources.memory_limit is defined %}
+MemoryLimit={{ service_resources.memory_limit }}
+{% endif %}
+{% if service_resources.cpu_limit is defined %}
+CPUQuota={{ (service_resources.cpu_limit | float * 100) | int }}%
+{% endif %}
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ working_dir }}/{{ service_name }} {{ log_dir }} {{ pid_dir }}
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ekr-{{ service_name }}
+
+# PID file
+PIDFile={{ pid_dir }}/ekr-{{ service_name }}.pid
+
+[Install]
+WantedBy=multi-user.target

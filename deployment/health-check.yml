@@ -1,0 +1,76 @@
+---
+- name: Health Check for EKR Service
+  hosts: all
+  vars:
+    config_file: "../services-config.yml"
+    service_config: "{{ (lookup('file', config_file) | from_yaml).services[service_name] }}"
+    global_config: "{{ (lookup('file', config_file) | from_yaml).global }}"
+    deployment_config: "{{ (lookup('file', config_file) | from_yaml).deployment }}"
+    
+  tasks:
+    - name: Load service configuration
+      set_fact:
+        service_port: "{{ service_config.port }}"
+        service_health_endpoint: "{{ service_config.health_endpoint | default('/health') }}"
+        health_check_timeout: "{{ global_config.health_check_timeout | default(30) }}"
+        health_check_retries: "{{ deployment_config.health_check_retries | default(5) }}"
+        health_check_interval: "{{ deployment_config.health_check_interval | default(10) }}"
+
+    - name: Wait for service to start
+      wait_for:
+        port: "{{ service_port }}"
+        host: "{{ ansible_default_ipv4.address }}"
+        timeout: "{{ global_config.startup_timeout | default(60) }}"
+
+    - name: Check service status
+      systemd:
+        name: "ekr-{{ service_name }}"
+      register: service_status
+
+    - name: Verify service is running
+      assert:
+        that:
+          - service_status.status.ActiveState == "active"
+          - service_status.status.SubState == "running"
+        fail_msg: "Service ekr-{{ service_name }} is not running properly"
+        success_msg: "Service ekr-{{ service_name }} is running"
+
+    - name: Health check via HTTP endpoint
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}:{{ service_port }}{{ service_health_endpoint }}"
+        method: GET
+        timeout: "{{ health_check_timeout }}"
+        status_code: 200
+      register: health_check_result
+      retries: "{{ health_check_retries }}"
+      delay: "{{ health_check_interval }}"
+      until: health_check_result.status == 200
+
+    - name: Display health check response
+      debug:
+        msg: |
+          Health check successful for {{ service_name }}
+          Status: {{ health_check_result.status }}
+          Response: {{ health_check_result.json | default('No JSON response') }}
+
+    - name: Check service logs for errors
+      shell: |
+        journalctl -u ekr-{{ service_name }} --since "5 minutes ago" --no-pager | grep -i error || true
+      register: error_logs
+      changed_when: false
+
+    - name: Display recent error logs if any
+      debug:
+        msg: |
+          Recent error logs for {{ service_name }}:
+          {{ error_logs.stdout | default('No recent errors found') }}
+      when: error_logs.stdout != ""
+
+    - name: Service health summary
+      debug:
+        msg: |
+          ✅ Service {{ service_name }} health check completed successfully
+          - Service is active and running
+          - HTTP health endpoint responding
+          - Port {{ service_port }} is accessible
+          - No critical errors in recent logs

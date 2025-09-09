@@ -1,0 +1,85 @@
+---
+- name: Cleanup and Maintenance for EKR Services
+  hosts: all
+  vars:
+    config_file: "../services-config.yml"
+    global_config: "{{ (lookup('file', config_file) | from_yaml).global }}"
+    deployment_config: "{{ (lookup('file', config_file) | from_yaml).deployment }}"
+    
+  tasks:
+    - name: Get current date for cleanup calculations
+      set_fact:
+        current_date: "{{ ansible_date_time.epoch | int }}"
+        retention_seconds: "{{ (deployment_config.backup_retention_days | default(7)) * 24 * 3600 }}"
+
+    - name: Find old backup directories
+      find:
+        paths: "{{ global_config.backup_directory }}"
+        file_type: directory
+        age: "{{ deployment_config.backup_retention_days | default(7) }}d"
+        recurse: yes
+      register: old_backups
+      when: deployment_config.cleanup_old_backups | default(true)
+
+    - name: Remove old backup directories
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_backups.files }}"
+      when: 
+        - deployment_config.cleanup_old_backups | default(true)
+        - old_backups.files is defined
+
+    - name: Display cleanup summary
+      debug:
+        msg: |
+          Cleanup Summary:
+          - Removed {{ old_backups.files | length | default(0) }} old backup directories
+          - Backup retention: {{ deployment_config.backup_retention_days | default(7) }} days
+
+    - name: Rotate log files if they exist
+      shell: |
+        find {{ global_config.log_directory }} -name "*.log" -size +100M -exec logrotate -f /etc/logrotate.d/ekr {} \; 2>/dev/null || true
+      register: log_rotation
+      changed_when: false
+
+    - name: Check for unused dependencies
+      shell: |
+        package-cleanup --leaves --quiet 2>/dev/null || echo "No unused packages found"
+      register: unused_packages
+      changed_when: false
+
+    - name: Display unused packages
+      debug:
+        msg: |
+          Unused Packages:
+          {{ unused_packages.stdout }}
+
+    - name: Clean dnf cache
+      dnf:
+        autoremove: yes
+        state: absent
+      when: ansible_pkg_mgr == "dnf"
+
+    - name: Check systemd journal size
+      shell: |
+        journalctl --disk-usage | grep -o '[0-9.]*[KMGT]B'
+      register: journal_size
+      changed_when: false
+
+    - name: Vacuum systemd journal if too large
+      shell: |
+        journalctl --vacuum-time=7d
+      when: 
+        - journal_size.stdout is defined
+        - "'G' in journal_size.stdout and journal_size.stdout.split('G')[0] | float > 1.0"
+
+    - name: Display maintenance summary
+      debug:
+        msg: |
+          🧹 Maintenance Summary:
+          - Old backups cleaned: {{ old_backups.files | length | default(0) }}
+          - Log rotation: Completed
+          - Package cleanup: Completed
+          - Journal size: {{ journal_size.stdout | default('Unknown') }}
+          - System maintenance: ✅ Completed

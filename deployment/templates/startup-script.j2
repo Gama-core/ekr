@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# EKR {{ service_name }} service startup script
+# Generated on {{ ansible_date_time.iso8601 }}
+
+set -e
+
+# Load environment variables
+if [ -f "/etc/ekr/{{ service_name }}.env" ]; then
+    source "/etc/ekr/{{ service_name }}.env"
+fi
+
+# Set working directory
+cd "{{ working_dir }}/{{ service_name }}"
+
+# Create PID file directory if it doesn't exist
+mkdir -p "{{ pid_dir }}"
+
+# Log startup
+echo "$(date): Starting EKR {{ service_name }} service" >> "{{ log_dir }}/{{ service_name }}.log"
+
+# Check if main file exists
+if [ ! -f "{{ service_main_file }}" ]; then
+    echo "Error: Main file {{ service_main_file }} not found" >&2
+    exit 1
+fi
+
+{% if service_config.service_type | default(global_config.service_type) == "python" %}
+# Python/FastAPI service startup
+echo "$(date): Starting Python FastAPI service on port {{ service_port }}" >> "{{ log_dir }}/{{ service_name }}.log"
+
+# Check if uvicorn is available
+if ! command -v uvicorn &> /dev/null; then
+    echo "Error: uvicorn not found. Please install uvicorn." >&2
+    exit 1
+fi
+
+# Start the service with uvicorn
+exec python3 -m uvicorn {{ service_main_file.replace('.py', '') }}:app \
+    --host 0.0.0.0 \
+    --port {{ service_port }} \
+    --workers 1 \
+    --access-log \
+    --log-level {{ service_env_vars.LOG_LEVEL | default('info') | lower }}
+
+{% elif service_config.service_type == "nodejs" %}
+# Node.js service startup
+echo "$(date): Starting Node.js service on port {{ service_port }}" >> "{{ log_dir }}/{{ service_name }}.log"
+
+if [ ! -f "package.json" ]; then
+    echo "Error: package.json not found" >&2
+    exit 1
+fi
+
+# Install dependencies if node_modules doesn't exist
+if [ ! -d "node_modules" ]; then
+    npm install
+fi
+
+# Start the Node.js service
+exec node {{ service_main_file }}
+
+{% elif service_config.service_type == "go" %}
+# Go service startup
+echo "$(date): Starting Go service on port {{ service_port }}" >> "{{ log_dir }}/{{ service_name }}.log"
+
+# Build if binary doesn't exist
+if [ ! -f "./{{ service_name }}" ]; then
+    go build -o {{ service_name }} {{ service_main_file }}
+fi
+
+# Start the Go service
+exec ./{{ service_name }}
+
+{% else %}
+# Generic service startup
+echo "$(date): Starting generic service {{ service_name }}" >> "{{ log_dir }}/{{ service_name }}.log"
+exec ./{{ service_main_file }}
+{% endif %}

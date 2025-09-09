@@ -1,0 +1,192 @@
+---
+- name: Deploy EKR Service to AlmaLinux
+  hosts: all
+  become: yes
+  vars:
+    config_file: "../services-config.yml"
+    service_config: "{{ (lookup('file', config_file) | from_yaml).services[service_name] }}"
+    global_config: "{{ (lookup('file', config_file) | from_yaml).global }}"
+    almalinux_config: "{{ (lookup('file', config_file) | from_yaml).almalinux }}"
+    deployment_config: "{{ (lookup('file', config_file) | from_yaml).deployment }}"
+    
+  tasks:
+    - name: Load service configuration
+      set_fact:
+        service_port: "{{ service_config.port }}"
+        service_description: "{{ service_config.description }}"
+        service_main_file: "{{ service_config.main_file }}"
+        service_health_endpoint: "{{ service_config.health_endpoint | default('/health') }}"
+        service_dependencies: "{{ service_config.dependencies | default([]) }}"
+        service_env_vars: "{{ service_config.environment_variables | default({}) }}"
+        service_resources: "{{ service_config.resources | default({}) }}"
+        working_dir: "{{ global_config.working_directory }}"
+        log_dir: "{{ global_config.log_directory }}"
+        pid_dir: "{{ global_config.pid_directory }}"
+        service_user: "{{ global_config.user }}"
+        service_group: "{{ global_config.group }}"
+
+    - name: Print deployment information
+      debug:
+        msg: |
+          Deploying service: {{ service_name }}
+          Port: {{ service_port }}
+          Description: {{ service_description }}
+          Main file: {{ service_main_file }}
+          Health endpoint: {{ service_health_endpoint }}
+
+    - name: Install required AlmaLinux packages
+      dnf:
+        name: "{{ almalinux_config.required_packages }}"
+        state: present
+        update_cache: yes
+
+    - name: Create service user and group
+      group:
+        name: "{{ service_group }}"
+        state: present
+
+    - name: Create service user
+      user:
+        name: "{{ service_user }}"
+        group: "{{ service_group }}"
+        system: yes
+        shell: /bin/bash
+        home: "{{ working_dir }}"
+        create_home: yes
+
+    - name: Create necessary directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ service_user }}"
+        group: "{{ service_group }}"
+        mode: '0755'
+      loop:
+        - "{{ working_dir }}"
+        - "{{ working_dir }}/{{ service_name }}"
+        - "{{ log_dir }}"
+        - "{{ pid_dir }}"
+        - "{{ global_config.backup_directory }}"
+        - "{{ global_config.backup_directory }}/{{ service_name }}"
+        - "/etc/ekr"
+
+    - name: Check if service is currently running
+      systemd:
+        name: "ekr-{{ service_name }}"
+      register: service_status
+      failed_when: false
+
+    - name: Create backup of current service if it exists
+      block:
+        - name: Stop service before backup
+          systemd:
+            name: "ekr-{{ service_name }}"
+            state: stopped
+          when: service_status.status is defined and service_status.status.ActiveState == "active"
+
+        - name: Create backup directory with timestamp
+          set_fact:
+            backup_dir: "{{ global_config.backup_directory }}/{{ service_name }}/{{ deployment_timestamp }}"
+
+        - name: Create timestamped backup directory
+          file:
+            path: "{{ backup_dir }}"
+            state: directory
+            owner: "{{ service_user }}"
+            group: "{{ service_group }}"
+            mode: '0755'
+
+        - name: Backup current service files
+          copy:
+            src: "{{ working_dir }}/{{ service_name }}/"
+            dest: "{{ backup_dir }}/"
+            remote_src: yes
+            owner: "{{ service_user }}"
+            group: "{{ service_group }}"
+            mode: preserve
+          when: service_status.status is defined
+      when: deployment_config.backup_before_deploy | default(true)
+
+    - name: Copy service files
+      synchronize:
+        src: "../services/{{ service_name }}/"
+        dest: "{{ working_dir }}/{{ service_name }}/"
+        delete: yes
+        recursive: yes
+      delegate_to: localhost
+
+    - name: Set ownership of service files
+      file:
+        path: "{{ working_dir }}/{{ service_name }}"
+        owner: "{{ service_user }}"
+        group: "{{ service_group }}"
+        recurse: yes
+
+    - name: Install Python dependencies
+      pip:
+        requirements: "{{ working_dir }}/{{ service_name }}/requirements.txt"
+        executable: pip3
+        extra_args: "--user"
+      become_user: "{{ service_user }}"
+      when: service_config.service_type | default(global_config.service_type) == "python"
+
+    - name: Create environment file
+      template:
+        src: templates/environment.j2
+        dest: "/etc/ekr/{{ service_name }}.env"
+        owner: "{{ service_user }}"
+        group: "{{ service_group }}"
+        mode: '0600'
+
+    - name: Create systemd service file
+      template:
+        src: templates/systemd-service.j2
+        dest: "/etc/systemd/system/ekr-{{ service_name }}.service"
+        owner: root
+        group: root
+        mode: '0644'
+      notify:
+        - reload systemd
+        - restart service
+
+    - name: Create service startup script
+      template:
+        src: templates/startup-script.j2
+        dest: "{{ working_dir }}/{{ service_name }}/start.sh"
+        owner: "{{ service_user }}"
+        group: "{{ service_group }}"
+        mode: '0755'
+
+    - name: Configure firewall for service port
+      firewalld:
+        port: "{{ service_port }}/tcp"
+        permanent: yes
+        state: enabled
+        immediate: yes
+      when: almalinux_config.firewall_service is defined
+
+    - name: Configure SELinux for service port
+      seport:
+        ports: "{{ service_port }}"
+        proto: tcp
+        setype: http_port_t
+        state: present
+      when: almalinux_config.selinux_enabled | default(false)
+
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: restart service
+      systemd:
+        name: "ekr-{{ service_name }}"
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
+
+    - name: start service
+      systemd:
+        name: "ekr-{{ service_name }}"
+        state: started
+        enabled: yes

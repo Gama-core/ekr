@@ -1,0 +1,215 @@
+# EKR Services Configuration
+# This file defines deployment parameters for each service in the services/ directory
+
+version: "1.0"
+
+# Global configuration that applies to all services unless overridden
+global:
+  service_type: "python"
+  runtime: "uvicorn"
+  python_version: "3.9"
+  user: "ekr"
+  group: "ekr"
+  working_directory: "/opt/ekr/services"
+  log_directory: "/var/log/ekr"
+  pid_directory: "/var/run/ekr"
+  environment_file: "/etc/ekr/environment"
+  systemd_directory: "/etc/systemd/system"
+  backup_directory: "/opt/ekr/backups"
+  health_check_timeout: 30
+  startup_timeout: 60
+  restart_policy: "on-failure"
+  restart_delay: 5
+
+# Service-specific configurations
+services:
+  database-api:
+    name: "EKR Database API"
+    description: "Database API service for EKR"
+    port: 8003
+    main_file: "main.py"
+    health_endpoint: "/health"
+    dependencies:
+      - "postgresql.service"
+    environment_variables:
+      DATABASE_URL: "${DATABASE_URL}"
+      LOG_LEVEL: "INFO"
+    resources:
+      memory_limit: "512M"
+      cpu_limit: "1.0"
+
+  llm-query:
+    name: "EKR LLM Query Service"
+    description: "LLM query service for EKR"
+    port: 8002
+    main_file: "main.py"
+    health_endpoint: "/health"
+    environment_variables:
+      QWEN_API_KEY: "${QWEN_API_KEY}"
+      QWEN_BASE_URL: "${QWEN_BASE_URL}"
+      LOG_LEVEL: "INFO"
+    resources:
+      memory_limit: "1G"
+      cpu_limit: "2.0"
+
+  semantic-retrieval:
+    name: "EKR Semantic Retrieval Service"
+    description: "Semantic retrieval and RAG service for EKR"
+    port: 8001
+    main_file: "main.py"
+    health_endpoint: "/health"
+    dependencies:
+      - "ekr-database-api.service"
+    environment_variables:
+      DATABASE_API_URL: "http://localhost:8003"
+      QWEN_API_KEY: "${QWEN_API_KEY}"
+      LOG_LEVEL: "INFO"
+    resources:
+      memory_limit: "2G"
+      cpu_limit: "2.0"
+
+  google-search:
+    name: "EKR Google Search Service"
+    description: "Google Custom Search service for EKR"
+    port: 8004
+    main_file: "main.py"
+    health_endpoint: "/health"
+    environment_variables:
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY}"
+      GOOGLE_CSE_ID: "${GOOGLE_CSE_ID}"
+      LOG_LEVEL: "INFO"
+    resources:
+      memory_limit: "256M"
+      cpu_limit: "0.5"
+
+  elastic-search:
+    name: "EKR Elasticsearch Service"
+    description: "Elasticsearch indexing service for EKR"
+    port: 8005
+    main_file: "main.py"
+    health_endpoint: "/health"
+    dependencies:
+      - "ekr-database-api.service"
+    environment_variables:
+      DATABASE_API_URL: "http://localhost:8003"
+      ES_HOST_URL: "${ES_HOST_URL}"
+      ES_USERNAME: "${ES_USERNAME}"
+      ES_PASSWORD: "${ES_PASSWORD}"
+      LOG_LEVEL: "INFO"
+    resources:
+      memory_limit: "1G"
+      cpu_limit: "1.0"
+
+  web-crawl:
+    name: "EKR Web Crawl Service"
+    description: "Web crawling service for EKR"
+    port: 8006
+    main_file: "main.py"
+    health_endpoint: "/health"
+    environment_variables:
+      DATABASE_API_URL: "http://localhost:8003"
+      LOG_LEVEL: "INFO"
+    resources:
+      memory_limit: "512M"
+      cpu_limit: "1.0"
+
+  rss-extractor:
+    name: "EKR RSS Extractor Service"
+    description: "RSS feed extraction service for EKR"
+    port: 8007
+    main_file: "main.py"
+    health_endpoint: "/health"
+    environment_variables:
+      DATABASE_API_URL: "http://localhost:8003"
+      LOG_LEVEL: "INFO"
+    resources:
+      memory_limit: "256M"
+      cpu_limit: "0.5"
+
+  ocr:
+    name: "EKR OCR Service"
+    description: "Optical Character Recognition service for EKR"
+    port: 8008
+    main_file: "main.py"
+    health_endpoint: "/health"
+    environment_variables:
+      LOG_LEVEL: "INFO"
+    resources:
+      memory_limit: "512M"
+      cpu_limit: "1.0"
+
+  mindmap:
+    name: "EKR Mindmap Service"
+    description: "Mindmap generation service for EKR"
+    port: 8009
+    main_file: "main.py"
+    health_endpoint: "/health"
+    dependencies:
+      - "ekr-database-api.service"
+    environment_variables:
+      DATABASE_API_URL: "http://localhost:8003"
+      LOG_LEVEL: "INFO"
+    resources:
+      memory_limit: "256M"
+      cpu_limit: "0.5"
+
+  quiz:
+    name: "EKR Quiz Service"
+    description: "Quiz generation service for EKR"
+    port: 8010
+    main_file: "main.py"
+    health_endpoint: "/health"
+    dependencies:
+      - "ekr-database-api.service"
+    environment_variables:
+      DATABASE_API_URL: "http://localhost:8003"
+      LOG_LEVEL: "INFO"
+    resources:
+      memory_limit: "256M"
+      cpu_limit: "0.5"
+
+# Prerequisites service - commented out as directory doesn't exist yet
+  # prerequisites:
+  #   name: "EKR Prerequisites Service"
+  #   description: "Prerequisites service for EKR"
+  #   port: 8011
+  #   main_file: "main.py"
+  #   health_endpoint: "/health"
+  #   dependencies:
+  #     - "ekr-database-api.service"
+  #   environment_variables:
+  #     DATABASE_API_URL: "http://localhost:8003"
+  #     LOG_LEVEL: "INFO"
+  #   resources:
+  #     memory_limit: "256M"
+  #     cpu_limit: "0.5"
+
+# AlmaLinux specific configuration
+almalinux:
+  package_manager: "dnf"
+  python_package: "python3.9"
+  pip_package: "python3-pip"
+  systemd_reload_command: "systemctl daemon-reload"
+  firewall_service: "firewalld"
+  selinux_enabled: true
+  required_packages:
+    - "python3"
+    - "python3-pip"
+    - "python3-devel"
+    - "gcc"
+    - "gcc-c++"
+    - "git"
+    - "curl"
+    - "wget"
+    - "unzip"
+  
+# Deployment configuration
+deployment:
+  strategy: "rolling"
+  max_parallel_deployments: 3
+  health_check_retries: 5
+  health_check_interval: 10
+  rollback_on_failure: true
+  backup_before_deploy: true
+  cleanup_old_backups: true
+  backup_retention_days: 7

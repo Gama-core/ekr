@@ -1,0 +1,27 @@
+# Environment variables for EKR {{ service_name }} service
+# Generated on {{ ansible_date_time.iso8601 }}
+
+# Service configuration
+SERVICE_NAME={{ service_name }}
+SERVICE_PORT={{ service_port }}
+LOG_LEVEL={{ service_env_vars.LOG_LEVEL | default('INFO') }}
+
+# Working directories
+WORKING_DIR={{ working_dir }}/{{ service_name }}
+LOG_DIR={{ log_dir }}
+PID_DIR={{ pid_dir }}
+
+# Python specific
+PYTHONPATH={{ working_dir }}/{{ service_name }}
+PYTHONUNBUFFERED=1
+
+# Service specific environment variables
+{% for key, value in service_env_vars.items() %}
+{{ key }}={{ value }}
+{% endfor %}
+
+# Deployment metadata
+DEPLOYMENT_TIMESTAMP={{ deployment_timestamp | default(ansible_date_time.iso8601) }}
+DEPLOYMENT_VERSION={{ github_sha | default('unknown') }}
+DEPLOYMENT_BRANCH={{ github_ref | default('unknown') }}
+TARGET_ENVIRONMENT={{ target_environment | default('staging') }}
